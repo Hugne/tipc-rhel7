@@ -18,3 +18,6 @@ kmod:
 	#https://bugzilla.redhat.com/show_bug.cgi?id=842038
 	#Once that bug is resolved, they should be replaced with:
 	#mock --configdir=$(CONFIGDIR)  --resultdir=$(OUTDIR) --rebuild $(SRPM)
+
+clean:
+	rm -rf out/*
