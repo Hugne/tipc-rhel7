@@ -11,5 +11,10 @@ srpm:
 	mock --configdir=$(CONFIGDIR) --spec=$(SPECFILE) --sources=$(SOURCES) --resultdir=$(OUTDIR) --buildsrpm
 
 kmod:
-	mock --configdir=$(CONFIGDIR)  --resultdir=$(OUTDIR) --rebuild $(SRPM)
-
+	mock --configdir=$(CONFIGDIR) --init
+	mock --configdir=$(CONFIGDIR) --chroot "ln -s /lib/modules/kabi-current/ /lib/modules/kabi"
+	mock --no-clean --configdir=$(CONFIGDIR)  --resultdir=$(OUTDIR) --rebuild $(SRPM)
+	#This is just a workaround for the kabi symlink bug:
+	#https://bugzilla.redhat.com/show_bug.cgi?id=842038
+	#Once that bug is resolved, they should be replaced with:
+	#mock --configdir=$(CONFIGDIR)  --resultdir=$(OUTDIR) --rebuild $(SRPM)

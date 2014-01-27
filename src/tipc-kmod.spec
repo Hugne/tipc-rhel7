@@ -5,6 +5,7 @@
 
 Source0:	tipc.tar.bz2
 Source1:	tipc.conf
+Source10:	tipc-kmodtool.sh
 Name:           %{kmod_name}
 Version:        2.0
 Release:        1.0%{?dist}
@@ -20,11 +21,10 @@ ExclusiveArch:  i686 x86_64
 %defattr(-,root,root,-)
 /etc/depmod.d/tipc.conf
 
-%kernel_module_package
 
-#redhat-rpm-config bug: find-requires.ksyms searches for whitelist
-#in the wrong path, workaround:
-# sudo ln -s /lib/modules/kabi-current/ /lib/modules/kabi
+#Because redhat-rpm-config is hopelessly broken in chroot environments
+%define kversion %{expand:%(sh %{SOURCE10} verrel)}
+%{expand:%(sh %{SOURCE10} rpmtemplate %{kmod_name} %{kversion} "")}
 
 %define debug_package %{nil}
 
@@ -36,33 +36,30 @@ of the same variant of the Linux kernel and not on any one specific build.
 %prep
 %setup -n %{kmod_name}
 set -- *
-mkdir source
-mv "$@" source/
-mkdir obj
-
+mkdir tipc
+mv "$@" tipc/
 %{echo:prep stage 2}
 echo "override %{kmod_name} * weak-updates/%{kmod_name}" > %{kmod_name}.conf
 
 %build
-for flavor in %flavors_to_build ; do
-    rm -rf obj/{$flavor}
-    cp -r source obj/${flavor}
-    make %{?_smp_mflags} -C %{kernel_source $flavor} M=$PWD/obj/$flavor \
-            CONFIG_TIPC=m TIPC_PORTS=131072
-done
+ksrc="%{_usrsrc}/kernels/%{kversion}"
+%{__make} -C "$ksrc" %{?_smp_mflags} CONFIG_TIPC=m TIPC_PORTS=131072 M=$PWD/tipc
 
 %install
-export INSTALL_MOD_PATH=$RPM_BUILD_ROOT
-for flavor in %flavors_to_build ; do
-    make -C %{kernel_source $flavor} modules_install M=$PWD/obj/$flavor
-done
-install -m 644 -D %{SOURCE1} $RPM_BUILD_ROOT/etc/depmod.d/%{kmod_name}.conf
+%{__install} -d %{buildroot}/lib/modules/%{kversion}/extra/%{kmod_name}/
+%{__install} $PWD/tipc/*.ko %{buildroot}/lib/modules/%{kversion}/extra/%{kmod_name}/
+%{__install} -d %{buildroot}%{_sysconfdir}/depmod.d/
+%{__install} %{kmod_name}.conf %{buildroot}%{_sysconfdir}/depmod.d/
+%{__rm} -f %{buildroot}/lib/modules/%{kversion}/modules.*
 
 %clean
-
-%{__rm} -rf $RPM_BUILD_ROOT
+%{__rm} -rf %{buildroot}
 
 %changelog
+* Mon Jan 27 2014 Erik Hugne <erik.hugne@ericsson.com>
+- Large portions rewritten due to chroot related bugs
+  in redhat-rpm-config
+
 * Fri Nov 22 2013 Erik Hugne <erik.hugne@ericsson.com>
 - Initial version
 
