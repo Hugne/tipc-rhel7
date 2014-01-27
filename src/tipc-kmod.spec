@@ -4,7 +4,6 @@
 #%{!?kernel_version: %global kernel_version %(uname -r)}
 
 Source0:	tipc.tar.bz2
-Source1:	tipc.conf
 Source10:	tipc-kmodtool.sh
 Name:           %{kmod_name}
 Version:        2.0
@@ -19,8 +18,6 @@ ExclusiveArch:  i686 x86_64
 
 %files
 %defattr(-,root,root,-)
-/etc/depmod.d/tipc.conf
-
 
 #Because redhat-rpm-config is hopelessly broken in chroot environments
 %define kversion %{expand:%(sh %{SOURCE10} verrel)}
@@ -38,8 +35,6 @@ of the same variant of the Linux kernel and not on any one specific build.
 set -- *
 mkdir tipc
 mv "$@" tipc/
-%{echo:prep stage 2}
-echo "override %{kmod_name} * weak-updates/%{kmod_name}" > %{kmod_name}.conf
 
 %build
 ksrc="%{_usrsrc}/kernels/%{kversion}"
@@ -48,8 +43,6 @@ ksrc="%{_usrsrc}/kernels/%{kversion}"
 %install
 %{__install} -d %{buildroot}/lib/modules/%{kversion}/extra/%{kmod_name}/
 %{__install} $PWD/tipc/*.ko %{buildroot}/lib/modules/%{kversion}/extra/%{kmod_name}/
-%{__install} -d %{buildroot}%{_sysconfdir}/depmod.d/
-%{__install} %{kmod_name}.conf %{buildroot}%{_sysconfdir}/depmod.d/
 %{__rm} -f %{buildroot}/lib/modules/%{kversion}/modules.*
 
 %clean
