@@ -151,8 +151,8 @@ get_rpmtemplate ()
     cat <<EOF
 Provides:         kernel-modules >= ${verrel_dep}${dotvariant}
 Provides:         ${kmod_name}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires(post):   /usr/sbin/depmod
-Requires(postun): /usr/sbin/depmod
+Requires(post):   /sbin/depmod
+Requires(postun): /sbin/depmod
 EOF
 
     if [ "yes" != "$nobuildreqs" ]
@@ -180,7 +180,7 @@ EOF
 cat <<EOF
 %post          -n kmod-${kmod_name}${dashvariant}
 if [ -e "/boot/System.map-${verrel}${dotvariant}" ]; then
-    /usr/sbin/depmod -aeF "/boot/System.map-${verrel}${dotvariant}" "${verrel}${dotvariant}" > /dev/null || :
+    /sbin/depmod -aeF "/boot/System.map-${verrel}${dotvariant}" "${verrel}${dotvariant}" > /dev/null || :
 fi
 
 modules=( \$(find /lib/modules/${verrel}${dotvariant}/extra/${kmod_name} | grep '\.ko$') )
@@ -198,7 +198,7 @@ EOF
 cat <<EOF
 %postun        -n kmod-${kmod_name}${dashvariant}
 if [ -e "/boot/System.map-${verrel}${dotvariant}" ]; then
-    /usr/sbin/depmod -aeF "/boot/System.map-${verrel}${dotvariant}" "${verrel}${dotvariant}" > /dev/null || :
+    /usr/depmod -aeF "/boot/System.map-${verrel}${dotvariant}" "${verrel}${dotvariant}" > /dev/null || :
 fi
 
 modules=( \$(cat /var/run/rpm-kmod-${kmod_name}${dashvariant}-modules) )
