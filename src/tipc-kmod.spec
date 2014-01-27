@@ -1,7 +1,7 @@
 %define kmod_name		tipc
 
-%{!?dist: %define dist .el6}
-%{!?kernel_version: %global kernel_version %(uname -r)}
+#%{!?dist: %define dist .el6}
+#%{!?kernel_version: %global kernel_version %(uname -r)}
 
 Source0:	tipc.tar.bz2
 Source1:	tipc.conf
