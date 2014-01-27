@@ -1,4 +1,6 @@
 %define kmod_name		tipc
+%define kmod_version		2.0
+%define kmod_release		1%{?dist}
 
 #%{!?dist: %define dist .el6}
 #%{!?kernel_version: %global kernel_version %(uname -r)}
@@ -6,8 +8,8 @@
 Source0:	tipc.tar.bz2
 Source10:	tipc-kmodtool.sh
 Name:           %{kmod_name}
-Version:        2.0
-Release:        1.0%{?dist}
+Version:        %{kmod_version}
+Release:        %{kmod_release}
 Group:          System Environment/Kernel
 License:        Dual BSD/GPL
 Summary:        TIPC: Transparent Inter Process Communication
