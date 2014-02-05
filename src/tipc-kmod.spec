@@ -7,6 +7,7 @@
 
 Source0:	tipc.tar.bz2
 Source10:	tipc-kmodtool.sh
+Patch1:		0001-tipc-Optimize-handling-excess-content-on-incoming-messages.patch
 Name:           %{kmod_name}
 Version:        %{kmod_version}
 Release:        %{kmod_release}
@@ -37,6 +38,7 @@ of the same variant of the Linux kernel and not on any one specific build.
 set -- *
 mkdir tipc
 mv "$@" tipc/
+%patch1 -p2
 
 %build
 ksrc="%{_usrsrc}/kernels/%{kversion}"
@@ -51,6 +53,10 @@ ksrc="%{_usrsrc}/kernels/%{kversion}"
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Wed Feb 05 2014 Erik Hugne <erik.hugne@ericsson.com>
+- Added patch b2abd4c033c3965ce670841dfb401f5f166222d5
+  for HS15900/CC-2829 
+
 * Mon Jan 27 2014 Erik Hugne <erik.hugne@ericsson.com>
 - Large portions rewritten due to chroot related bugs
   in redhat-rpm-config
