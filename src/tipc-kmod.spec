@@ -2,12 +2,8 @@
 %define kmod_version		2.0
 %define kmod_release		1%{?dist}
 
-#%{!?dist: %define dist .el6}
-#%{!?kernel_version: %global kernel_version %(uname -r)}
-
 Source0:	tipc.tar.bz2
 Source10:	tipc-kmodtool.sh
-Patch1:		0001-tipc-Optimize-handling-excess-content-on-incoming-messages.patch
 Name:           %{kmod_name}
 Version:        %{kmod_version}
 Release:        %{kmod_release}
@@ -15,7 +11,7 @@ Group:          System Environment/Kernel
 License:        Dual BSD/GPL
 Summary:        TIPC: Transparent Inter Process Communication
 URL:            http://tipc.sourceforge.net
-BuildRequires:  %kernel_module_package_buildreqs kabi-whitelists
+BuildRequires:  %kernel_module_package_buildreqs kernel-abi-whitelists
 BuildRoot:	%(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 ExclusiveArch:  i686 x86_64
 
@@ -38,11 +34,10 @@ of the same variant of the Linux kernel and not on any one specific build.
 set -- *
 mkdir tipc
 mv "$@" tipc/
-%patch1 -p2
 
 %build
 ksrc="%{_usrsrc}/kernels/%{kversion}"
-%{__make} -C "$ksrc" %{?_smp_mflags} CONFIG_TIPC=m TIPC_PORTS=131072 M=$PWD/tipc
+KCPPFLAGS="-DCONFIG_TIPC_PORTS=262144" %{__make} -C "$ksrc" %{?_smp_mflags} CONFIG_TIPC=m M=$PWD/tipc
 
 %install
 %{__install} -d %{buildroot}/lib/modules/%{kversion}/extra/%{kmod_name}/

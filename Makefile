@@ -2,7 +2,7 @@ CONFIGDIR=./mock/
 SPECFILE=./src/tipc-kmod.spec
 SOURCES=./src/
 OUTDIR=./out
-SRPM=./out/tipc*.el6.src.rpm
+SRPM=./out/tipc*.src.rpm
 
 all: srpm kmod
 
@@ -12,7 +12,7 @@ srpm:
 
 kmod:
 	mock --configdir=$(CONFIGDIR) --init
-	mock --configdir=$(CONFIGDIR) --chroot "ln -s /lib/modules/kabi-current/ /lib/modules/kabi"
+	mock --configdir=$(CONFIGDIR) --chroot "ln -s /lib/modules/kabi-rhel70/ /lib/modules/kabi"
 	mock --no-clean --configdir=$(CONFIGDIR)  --resultdir=$(OUTDIR) --rebuild $(SRPM)
 	#This is just a workaround for the kabi symlink bug:
 	#https://bugzilla.redhat.com/show_bug.cgi?id=842038

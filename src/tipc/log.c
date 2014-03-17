@@ -1,7 +1,7 @@
 /*
- * net/tipc/dbg.h: Include file for TIPC print buffer routines
+ * net/tipc/log.c: TIPC print buffer routines for debugging
  *
- * Copyright (c) 1997-2006, Ericsson AB
+ * Copyright (c) 1996-2006, Ericsson AB
  * Copyright (c) 2005-2007, Wind River Systems
  * All rights reserved.
  *
@@ -34,37 +34,22 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _TIPC_DBG_H
-#define _TIPC_DBG_H
+#include "core.h"
+#include "config.h"
 
 /**
- * struct print_buf - TIPC print buffer structure
- * @buf: pointer to character array containing print buffer contents
- * @size: size of character array
- * @crs: pointer to first unused space in character array (i.e. final NUL)
- * @echo: echo output to system console if non-zero
+ * tipc_snprintf - append formatted output to print buffer
+ * @buf: pointer to print buffer
+ * @len: buffer length
+ * @fmt: formatted info to be printed
  */
+int tipc_snprintf(char *buf, int len, const char *fmt, ...)
+{
+	int i;
+	va_list args;
 
-struct print_buf {
-	char *buf;
-	u32 size;
-	char *crs;
-	int echo;
-};
-
-#define TIPC_PB_MIN_SIZE 64	/* minimum size for a print buffer's array */
-#define TIPC_PB_MAX_STR 512	/* max printable string (with trailing NUL) */
-
-void tipc_printbuf_init(struct print_buf *pb, char *buf, u32 size);
-void tipc_printbuf_reset(struct print_buf *pb);
-int  tipc_printbuf_empty(struct print_buf *pb);
-int  tipc_printbuf_validate(struct print_buf *pb);
-void tipc_printbuf_move(struct print_buf *pb_to, struct print_buf *pb_from);
-
-int tipc_log_resize(int log_size);
-
-struct sk_buff *tipc_log_resize_cmd(const void *req_tlv_area,
-				    int req_tlv_space);
-struct sk_buff *tipc_log_dump(void);
-
-#endif
+	va_start(args, fmt);
+	i = vscnprintf(buf, len, fmt, args);
+	va_end(args);
+	return i;
+}

@@ -43,7 +43,6 @@
  * @lock: spinlock controlling access to object
  * @ref: reference value for object (combines instance & array index info)
  */
-
 struct reference {
 	void *object;
 	spinlock_t lock;
@@ -60,7 +59,6 @@ struct reference {
  * @index_mask: bitmask for array index portion of reference values
  * @start_mask: initial value for instance value portion of reference values
  */
-
 struct ref_table {
 	struct reference *entries;
 	u32 capacity;
@@ -89,14 +87,13 @@ struct ref_table {
  * have a reference value of 0 (although this is unlikely).
  */
 
-static struct ref_table tipc_ref_table = { NULL };
+static struct ref_table tipc_ref_table;
 
 static DEFINE_RWLOCK(ref_table_lock);
 
 /**
  * tipc_ref_table_init - create reference table for objects
  */
-
 int tipc_ref_table_init(u32 requested_size, u32 start)
 {
 	struct reference *table;
@@ -109,9 +106,7 @@ int tipc_ref_table_init(u32 requested_size, u32 start)
 		/* do nothing */ ;
 
 	/* allocate table & mark all entries as uninitialized */
-
-	table = __vmalloc(actual_size * sizeof(struct reference),
-			  GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO, PAGE_KERNEL);
+	table = vzalloc(actual_size * sizeof(struct reference));
 	if (table == NULL)
 		return -ENOMEM;
 
@@ -129,7 +124,6 @@ int tipc_ref_table_init(u32 requested_size, u32 start)
 /**
  * tipc_ref_table_stop - destroy reference table for objects
  */
-
 void tipc_ref_table_stop(void)
 {
 	if (!tipc_ref_table.entries)
@@ -150,54 +144,56 @@ void tipc_ref_table_stop(void)
  * register a partially initialized object, without running the risk that
  * the object will be accessed before initialization is complete.
  */
-
 u32 tipc_ref_acquire(void *object, spinlock_t **lock)
 {
-	struct reference *entry;
 	u32 index;
 	u32 index_mask;
 	u32 next_plus_upper;
 	u32 ref;
+	struct reference *entry = NULL;
 
 	if (!object) {
-		err("Attempt to acquire reference to non-existent object\n");
+		pr_err("Attempt to acquire ref. to non-existent obj\n");
 		return 0;
 	}
 	if (!tipc_ref_table.entries) {
-		err("Reference table not found during acquisition attempt\n");
+		pr_err("Ref. table not found in acquisition attempt\n");
 		return 0;
 	}
 
 	/* take a free entry, if available; otherwise initialize a new entry */
-
 	write_lock_bh(&ref_table_lock);
 	if (tipc_ref_table.first_free) {
 		index = tipc_ref_table.first_free;
 		entry = &(tipc_ref_table.entries[index]);
 		index_mask = tipc_ref_table.index_mask;
-		/* take lock in case a previous user of entry still holds it */
-		spin_lock_bh(&entry->lock);
 		next_plus_upper = entry->ref;
 		tipc_ref_table.first_free = next_plus_upper & index_mask;
 		ref = (next_plus_upper & ~index_mask) + index;
-		entry->ref = ref;
-		entry->object = object;
-		*lock = &entry->lock;
-	}
-	else if (tipc_ref_table.init_point < tipc_ref_table.capacity) {
+	} else if (tipc_ref_table.init_point < tipc_ref_table.capacity) {
 		index = tipc_ref_table.init_point++;
 		entry = &(tipc_ref_table.entries[index]);
 		spin_lock_init(&entry->lock);
-		spin_lock_bh(&entry->lock);
 		ref = tipc_ref_table.start_mask + index;
-		entry->ref = ref;
-		entry->object = object;
-		*lock = &entry->lock;
-	}
-	else {
+	} else {
 		ref = 0;
 	}
 	write_unlock_bh(&ref_table_lock);
+
+	/*
+	 * Grab the lock so no one else can modify this entry
+	 * While we assign its ref value & object pointer
+	 */
+	if (entry) {
+		spin_lock_bh(&entry->lock);
+		entry->ref = ref;
+		entry->object = object;
+		*lock = &entry->lock;
+		/*
+		 * keep it locked, the caller is responsible
+		 * for unlocking this when they're done with it
+		 */
+	}
 
 	return ref;
 }
@@ -208,7 +204,6 @@ u32 tipc_ref_acquire(void *object, spinlock_t **lock)
  * Disallow future references to an object and free up the entry for re-use.
  * Note: The entry's spin_lock may still be busy after discard
  */
-
 void tipc_ref_discard(u32 ref)
 {
 	struct reference *entry;
@@ -216,7 +211,7 @@ void tipc_ref_discard(u32 ref)
 	u32 index_mask;
 
 	if (!tipc_ref_table.entries) {
-		err("Reference table not found during discard attempt\n");
+		pr_err("Ref. table not found during discard attempt\n");
 		return;
 	}
 
@@ -227,11 +222,11 @@ void tipc_ref_discard(u32 ref)
 	write_lock_bh(&ref_table_lock);
 
 	if (!entry->object) {
-		err("Attempt to discard reference to non-existent object\n");
+		pr_err("Attempt to discard ref. to non-existent obj\n");
 		goto exit;
 	}
 	if (entry->ref != ref) {
-		err("Attempt to discard non-existent reference\n");
+		pr_err("Attempt to discard non-existent reference\n");
 		goto exit;
 	}
 
@@ -239,12 +234,10 @@ void tipc_ref_discard(u32 ref)
 	 * mark entry as unused; increment instance part of entry's reference
 	 * to invalidate any subsequent references
 	 */
-
 	entry->object = NULL;
 	entry->ref = (ref & ~index_mask) + (index_mask + 1);
 
 	/* append entry to free entry list */
-
 	if (tipc_ref_table.first_free == 0)
 		tipc_ref_table.first_free = index;
 	else
@@ -258,7 +251,6 @@ exit:
 /**
  * tipc_ref_lock - lock referenced object and return pointer to it
  */
-
 void *tipc_ref_lock(u32 ref)
 {
 	if (likely(tipc_ref_table.entries)) {
@@ -276,28 +268,10 @@ void *tipc_ref_lock(u32 ref)
 	return NULL;
 }
 
-/**
- * tipc_ref_unlock - unlock referenced object
- */
-
-void tipc_ref_unlock(u32 ref)
-{
-	if (likely(tipc_ref_table.entries)) {
-		struct reference *entry;
-
-		entry = &tipc_ref_table.entries[ref &
-						tipc_ref_table.index_mask];
-		if (likely((entry->ref == ref) && (entry->object)))
-			spin_unlock_bh(&entry->lock);
-		else
-			err("Attempt to unlock non-existent reference\n");
-	}
-}
 
 /**
  * tipc_ref_deref - return pointer referenced object (without locking it)
  */
-
 void *tipc_ref_deref(u32 ref)
 {
 	if (likely(tipc_ref_table.entries)) {
@@ -310,4 +284,3 @@ void *tipc_ref_deref(u32 ref)
 	}
 	return NULL;
 }
-
