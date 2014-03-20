@@ -1,0 +1,88 @@
+From 3d351de97f3e230df6a0c8b486f9ced88bec30bf Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Thu, 13 Feb 2014 17:29:06 -0500
+Subject: [PATCH 65/94] tipc: move code for resetting links from bearer.c to
+ link.c
+
+We break out the code for resetting attached links in the
+function tipc_reset_bearer(), and define a new function named
+tipc_link_reset_list() to do this job.
+
+This commit incurs no functional changes, but makes the code
+of function tipc_reset_bearer() cleaner. It is also a preparation
+for a more important change to the bearer code, in a subsequent
+commit in this series.
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Reviewed-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/bearer.c |   11 +----------
+ net/tipc/link.c   |   12 ++++++++++++
+ net/tipc/link.h   |    1 +
+ 3 files changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/net/tipc/bearer.c b/net/tipc/bearer.c
+index f3dd5df..919b915 100644
+--- a/net/tipc/bearer.c
++++ b/net/tipc/bearer.c
+@@ -350,19 +350,10 @@ exit:
+  */
+ int tipc_reset_bearer(struct tipc_bearer *b_ptr)
+ {
+-	struct tipc_link *l_ptr;
+-	struct tipc_link *temp_l_ptr;
+-
+ 	read_lock_bh(&tipc_net_lock);
+ 	pr_info("Resetting bearer <%s>\n", b_ptr->name);
+ 	spin_lock_bh(&b_ptr->lock);
+-	list_for_each_entry_safe(l_ptr, temp_l_ptr, &b_ptr->links, link_list) {
+-		struct tipc_node *n_ptr = l_ptr->owner;
+-
+-		spin_lock_bh(&n_ptr->lock);
+-		tipc_link_reset(l_ptr);
+-		spin_unlock_bh(&n_ptr->lock);
+-	}
++	tipc_link_reset_list(b_ptr);
+ 	spin_unlock_bh(&b_ptr->lock);
+ 	read_unlock_bh(&tipc_net_lock);
+ 	return 0;
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index 0ee9c51..974e991 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -461,6 +461,18 @@ void tipc_link_reset(struct tipc_link *l_ptr)
+ 	link_reset_statistics(l_ptr);
+ }
+ 
++void tipc_link_reset_list(struct tipc_bearer *b_ptr)
++{
++	struct tipc_link *l_ptr;
++
++	list_for_each_entry(l_ptr, &b_ptr->links, link_list) {
++		struct tipc_node *n_ptr = l_ptr->owner;
++
++		spin_lock_bh(&n_ptr->lock);
++		tipc_link_reset(l_ptr);
++		spin_unlock_bh(&n_ptr->lock);
++	}
++}
+ 
+ static void link_activate(struct tipc_link *l_ptr)
+ {
+diff --git a/net/tipc/link.h b/net/tipc/link.h
+index 8addc5e..73beecb 100644
+--- a/net/tipc/link.h
++++ b/net/tipc/link.h
+@@ -231,6 +231,7 @@ struct sk_buff *tipc_link_cmd_show_stats(const void *req_tlv_area,
+ struct sk_buff *tipc_link_cmd_reset_stats(const void *req_tlv_area,
+ 					  int req_tlv_space);
+ void tipc_link_reset(struct tipc_link *l_ptr);
++void tipc_link_reset_list(struct tipc_bearer *b_ptr);
+ int tipc_link_send(struct sk_buff *buf, u32 dest, u32 selector);
+ void tipc_link_send_names(struct list_head *message_list, u32 dest);
+ int tipc_link_send_buf(struct tipc_link *l_ptr, struct sk_buff *buf);
+-- 
+1.7.9.5
+

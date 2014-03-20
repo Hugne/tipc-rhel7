@@ -1,0 +1,69 @@
+From 616e43670dc968a767c4840fc3c307a9230e2674 Mon Sep 17 00:00:00 2001
+From: Joe Perches <joe@perches.com>
+Date: Fri, 18 Oct 2013 13:48:25 -0700
+Subject: [PATCH 28/94] net: misc: Remove extern from function prototypes
+
+There are a mix of function prototypes with and without extern
+in the kernel sources.  Standardize on not using extern for
+function prototypes.
+
+Function prototypes don't need to be written with extern.
+extern is assumed by the compiler.  Its use is as unnecessary as
+using auto to declare automatic/local variables in a block.
+
+Signed-off-by: Joe Perches <joe@perches.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/core.h |   28 ++++++++++++++--------------
+ 1 file changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/net/tipc/core.h b/net/tipc/core.h
+index be72f8c..94895d4 100644
+--- a/net/tipc/core.h
++++ b/net/tipc/core.h
+@@ -90,21 +90,21 @@ extern int tipc_random __read_mostly;
+ /*
+  * Routines available to privileged subsystems
+  */
+-extern int tipc_core_start_net(unsigned long);
+-extern int  tipc_handler_start(void);
+-extern void tipc_handler_stop(void);
+-extern int  tipc_netlink_start(void);
+-extern void tipc_netlink_stop(void);
+-extern int  tipc_socket_init(void);
+-extern void tipc_socket_stop(void);
+-extern int tipc_sock_create_local(int type, struct socket **res);
+-extern void tipc_sock_release_local(struct socket *sock);
+-extern int tipc_sock_accept_local(struct socket *sock,
+-				  struct socket **newsock, int flags);
++int tipc_core_start_net(unsigned long);
++int tipc_handler_start(void);
++void tipc_handler_stop(void);
++int tipc_netlink_start(void);
++void tipc_netlink_stop(void);
++int tipc_socket_init(void);
++void tipc_socket_stop(void);
++int tipc_sock_create_local(int type, struct socket **res);
++void tipc_sock_release_local(struct socket *sock);
++int tipc_sock_accept_local(struct socket *sock, struct socket **newsock,
++			   int flags);
+ 
+ #ifdef CONFIG_SYSCTL
+-extern int tipc_register_sysctl(void);
+-extern void tipc_unregister_sysctl(void);
++int tipc_register_sysctl(void);
++void tipc_unregister_sysctl(void);
+ #else
+ #define tipc_register_sysctl() 0
+ #define tipc_unregister_sysctl()
+@@ -201,6 +201,6 @@ static inline struct tipc_msg *buf_msg(struct sk_buff *skb)
+ 	return (struct tipc_msg *)skb->data;
+ }
+ 
+-extern struct sk_buff *tipc_buf_acquire(u32 size);
++struct sk_buff *tipc_buf_acquire(u32 size);
+ 
+ #endif
+-- 
+1.7.9.5
+

@@ -1,0 +1,68 @@
+From a94beaefe5879b4350a4587eb4ba0cf9d44ca262 Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Mon, 17 Jun 2013 10:54:44 -0400
+Subject: [PATCH 08/94] tipc: rename tipc_createport_raw to tipc_createport
+
+After the removal of the native API, there is now only one way to
+to create a TIPC port instance -- the function tipc_createport_raw().
+We make it more readable by renaming it to tipc_createport().
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/port.c   |    4 ++--
+ net/tipc/port.h   |    2 +-
+ net/tipc/socket.c |    4 ++--
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/net/tipc/port.c b/net/tipc/port.c
+index f628c84..84b2a57 100644
+--- a/net/tipc/port.c
++++ b/net/tipc/port.c
+@@ -202,11 +202,11 @@ exit:
+ }
+ 
+ /**
+- * tipc_createport_raw - create a generic TIPC port
++ * tipc_createport - create a generic TIPC port
+  *
+  * Returns pointer to (locked) TIPC port, or NULL if unable to create it
+  */
+-struct tipc_port *tipc_createport_raw(void *usr_handle,
++struct tipc_port *tipc_createport(void *usr_handle,
+ 			u32 (*dispatcher)(struct tipc_port *, struct sk_buff *),
+ 			void (*wakeup)(struct tipc_port *),
+ 			const u32 importance)
+diff --git a/net/tipc/port.h b/net/tipc/port.h
+index 4779f0a..4583882 100644
+--- a/net/tipc/port.h
++++ b/net/tipc/port.h
+@@ -106,7 +106,7 @@ struct tipc_port_list;
+ /*
+  * TIPC port manipulation routines
+  */
+-struct tipc_port *tipc_createport_raw(void *usr_handle,
++struct tipc_port *tipc_createport(void *usr_handle,
+ 		u32 (*dispatcher)(struct tipc_port *, struct sk_buff *),
+ 		void (*wakeup)(struct tipc_port *), const u32 importance);
+ 
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index 9510fe8..67f4e1f 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -195,8 +195,8 @@ static int tipc_sk_create(struct net *net, struct socket *sock, int protocol,
+ 		return -ENOMEM;
+ 
+ 	/* Allocate TIPC port for socket to use */
+-	tp_ptr = tipc_createport_raw(sk, &dispatch, &wakeupdispatch,
+-				     TIPC_LOW_IMPORTANCE);
++	tp_ptr = tipc_createport(sk, &dispatch, &wakeupdispatch,
++				 TIPC_LOW_IMPORTANCE);
+ 	if (unlikely(!tp_ptr)) {
+ 		sk_free(sk);
+ 		return -ENOMEM;
+-- 
+1.7.9.5
+

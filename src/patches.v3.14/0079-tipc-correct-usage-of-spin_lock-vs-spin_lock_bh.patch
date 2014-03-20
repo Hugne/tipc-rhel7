@@ -1,0 +1,55 @@
+From b72fa05550f28217b8534d62f61066e906608127 Mon Sep 17 00:00:00 2001
+From: Jon Paul Maloy <jon.maloy@ericsson.com>
+Date: Fri, 14 Feb 2014 16:40:44 -0500
+Subject: [PATCH 79/94] tipc: correct usage of spin_lock() vs spin_lock_bh()
+
+I commit e099e86c9e24fe9aff36773600543eb31d8954d
+("tipc: add node_lock protection to link lookup function")
+we are calling spin_lock(&node->lock) directly instead of indirectly
+via the tipc_node_lock(node) function. However, tipc_node_lock() is
+using spin_lock_bh(), not spin_lock(), something leading to
+unbalanced usage in one place, and a smatch warning.
+
+We fix this by consistently using tipc_node_lock()/unlock() in
+in the places touched by the mentioned commit.
+
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index c22b1e2..f4b8828 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -2417,7 +2417,7 @@ static struct tipc_node *tipc_link_find_owner(const char *link_name,
+ 
+ 	*bearer_id = 0;
+ 	list_for_each_entry_safe(n_ptr, tmp_n_ptr, &tipc_node_list, list) {
+-		spin_lock(&n_ptr->lock);
++		tipc_node_lock(n_ptr);
+ 		for (i = 0; i < MAX_BEARERS; i++) {
+ 			l_ptr = n_ptr->links[i];
+ 			if (l_ptr && !strcmp(l_ptr->name, link_name)) {
+@@ -2426,7 +2426,7 @@ static struct tipc_node *tipc_link_find_owner(const char *link_name,
+ 				break;
+ 			}
+ 		}
+-		spin_unlock(&n_ptr->lock);
++		tipc_node_unlock(n_ptr);
+ 		if (found_node)
+ 			break;
+ 	}
+@@ -2610,7 +2610,7 @@ struct sk_buff *tipc_link_cmd_reset_stats(const void *req_tlv_area, int req_tlv_
+ 		read_unlock_bh(&tipc_net_lock);
+ 		return tipc_cfg_reply_error_string("link not found");
+ 	}
+-	spin_lock(&node->lock);
++	tipc_node_lock(node);
+ 	l_ptr = node->links[bearer_id];
+ 	if (!l_ptr) {
+ 		tipc_node_unlock(node);
+-- 
+1.7.9.5
+

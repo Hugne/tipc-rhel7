@@ -1,0 +1,39 @@
+From 2d50667789887c30e9ff4a4358054dfa640696e2 Mon Sep 17 00:00:00 2001
+From: wangweidong <wangweidong1@huawei.com>
+Date: Fri, 27 Dec 2013 10:09:39 +0800
+Subject: [PATCH 47/94] tipc: make the code look more readable
+
+In commit 3b8401fe9d ("tipc: kill unnecessary goto's") didn't make
+the code look most readable, so fix it. This patch is cosmetic
+and does not change the operation of TIPC in any way.
+
+Suggested-by: David Laight <David.Laight@ACULAB.COM>
+Signed-off-by: Wang Weidong <wangweidong1@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/socket.c |    7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index 23a20c9..c8341d1 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -767,13 +767,10 @@ static int send_stream(struct kiocb *iocb, struct socket *sock,
+ 
+ 	/* Handle special cases where there is no connection */
+ 	if (unlikely(sock->state != SS_CONNECTED)) {
+-		res = -ENOTCONN;
+-
+ 		if (sock->state == SS_UNCONNECTED)
+ 			res = send_packet(NULL, sock, m, total_len);
+-		else if (sock->state == SS_DISCONNECTING)
+-			res = -EPIPE;
+-
++		else
++			res = sock->state == SS_DISCONNECTING ? -EPIPE : -ENOTCONN;
+ 		goto exit;
+ 	}
+ 
+-- 
+1.7.9.5
+

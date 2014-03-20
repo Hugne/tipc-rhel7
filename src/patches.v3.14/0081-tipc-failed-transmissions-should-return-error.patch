@@ -1,0 +1,59 @@
+From c0a623b7d652e499d04901d09fd9edc6d0f816cf Mon Sep 17 00:00:00 2001
+From: Erik Hugne <erik.hugne@ericsson.com>
+Date: Wed, 19 Feb 2014 08:37:58 +0100
+Subject: [PATCH 81/94] tipc: failed transmissions should return error
+
+When a message could not be sent out because the destination node
+or link could not be found, the full message size is returned from
+sendmsg() as if it had been sent successfully. An application will
+then get a false indication that it's making forward progress. This
+problem has existed since the initial commit in 2.6.16.
+
+We change this to return -ENETUNREACH if the message cannot be
+delivered due to the destination node/link being unavailable. We
+also get rid of the redundant tipc_reject_msg call since freeing
+the buffer and doing a tipc_port_iovec_reject accomplishes exactly
+the same thing.
+
+Signed-off-by: Erik Hugne <erik.hugne@ericsson.com>
+Reviewed-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |   14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index 284d638..d1a764b 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -1020,12 +1020,9 @@ exit:
+ 	read_unlock_bh(&tipc_net_lock);
+ 
+ 	/* Couldn't find a link to the destination node */
+-	if (buf)
+-		return tipc_reject_msg(buf, TIPC_ERR_NO_NODE);
+-	if (res >= 0)
+-		return tipc_port_iovec_reject(sender, hdr, msg_sect, len,
+-					      TIPC_ERR_NO_NODE);
+-	return res;
++	kfree_skb(buf);
++	tipc_port_iovec_reject(sender, hdr, msg_sect, len, TIPC_ERR_NO_NODE);
++	return -ENETUNREACH;
+ }
+ 
+ /*
+@@ -1163,8 +1160,9 @@ error:
+ 	} else {
+ reject:
+ 		kfree_skb_list(buf_chain);
+-		return tipc_port_iovec_reject(sender, hdr, msg_sect,
+-					      len, TIPC_ERR_NO_NODE);
++		tipc_port_iovec_reject(sender, hdr, msg_sect, len,
++				       TIPC_ERR_NO_NODE);
++		return -ENETUNREACH;
+ 	}
+ 
+ 	/* Append chain of fragments to send queue & send them */
+-- 
+1.7.9.5
+

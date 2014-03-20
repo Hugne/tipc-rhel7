@@ -1,0 +1,51 @@
+From c252ef0a22b7333d0096d3283641c1067ea06b66 Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Mon, 17 Jun 2013 10:54:48 -0400
+Subject: [PATCH 12/94] tipc: enhance priority of link protocol packet
+
+pfifo_fast is set as default traffic class queueing discipline. This
+queue has three so called "bands". Within each band, FIFO rules apply.
+However, as long as there are packets waiting in band 0, band 1 won't
+be processed.
+
+Now all kind of TIPC type packet priorities are never set, that is,
+their priorities are 0, so they are mapped to band 1 of pfifo_fast
+qdisc. But, especially during link congestion, if link protocol packet
+can be sent out as earlier as possible than other type of packets so
+that protocol packet can arrive at peer endpoint in time, the peer
+will timely reset its link timeout timer to keep the link alive.
+So enhancing the priority of link protocol packets can meet the
+specific demand to avoid unnecessary link reset due to a transient
+link congestion.
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Signed-off-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index b852c94..b6de1aa 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -41,6 +41,8 @@
+ #include "discover.h"
+ #include "config.h"
+ 
++#include <linux/pkt_sched.h>
++
+ /*
+  * Error message prefixes
+  */
+@@ -1947,6 +1949,7 @@ void tipc_link_send_proto_msg(struct tipc_link *l_ptr, u32 msg_typ,
+ 		return;
+ 
+ 	skb_copy_to_linear_data(buf, msg, sizeof(l_ptr->proto_msg));
++	buf->priority = TC_PRIO_CONTROL;
+ 
+ 	/* Defer message if bearer is already blocked */
+ 	if (tipc_bearer_blocked(l_ptr->b_ptr)) {
+-- 
+1.7.9.5
+

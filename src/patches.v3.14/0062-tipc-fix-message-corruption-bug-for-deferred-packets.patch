@@ -1,0 +1,64 @@
+From 767c2e84e07e646658200d4f083033308910d7e4 Mon Sep 17 00:00:00 2001
+From: Erik Hugne <erik.hugne@ericsson.com>
+Date: Tue, 11 Feb 2014 11:38:26 +0100
+Subject: [PATCH 62/94] tipc: fix message corruption bug for deferred packets
+
+If a packet received on a link is out-of-sequence, it will be
+placed on a deferred queue and later reinserted in the receive
+path once the preceding packets have been processed. The problem
+with this is that it will be subject to the buffer adjustment from
+link_recv_buf_validate twice. The second adjustment for 20 bytes
+header space will corrupt the packet.
+
+We solve this by tagging the deferred packets and bail out from
+receive buffer validation for packets that have already been
+subjected to this.
+
+Signed-off-by: Erik Hugne <erik.hugne@ericsson.com>
+Reviewed-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/core.h |    1 +
+ net/tipc/link.c |    7 +++++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/net/tipc/core.h b/net/tipc/core.h
+index 1ff477b..5569d96 100644
+--- a/net/tipc/core.h
++++ b/net/tipc/core.h
+@@ -192,6 +192,7 @@ static inline void k_term_timer(struct timer_list *timer)
+ 
+ struct tipc_skb_cb {
+ 	void *handle;
++	bool deferred;
+ };
+ 
+ #define TIPC_SKB_CB(__skb) ((struct tipc_skb_cb *)&((__skb)->cb[0]))
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index d4b5de4..da6018b 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -1391,6 +1391,12 @@ static int link_recv_buf_validate(struct sk_buff *buf)
+ 	u32 hdr_size;
+ 	u32 min_hdr_size;
+ 
++	/* If this packet comes from the defer queue, the skb has already
++	 * been validated
++	 */
++	if (unlikely(TIPC_SKB_CB(buf)->deferred))
++		return 1;
++
+ 	if (unlikely(buf->len < MIN_H_SIZE))
+ 		return 0;
+ 
+@@ -1703,6 +1709,7 @@ static void link_handle_out_of_seq_msg(struct tipc_link *l_ptr,
+ 				&l_ptr->newest_deferred_in, buf)) {
+ 		l_ptr->deferred_inqueue_sz++;
+ 		l_ptr->stats.deferred_recv++;
++		TIPC_SKB_CB(buf)->deferred = true;
+ 		if ((l_ptr->deferred_inqueue_sz % 16) == 1)
+ 			tipc_link_send_proto_msg(l_ptr, STATE_MSG, 0, 0, 0, 0, 0);
+ 	} else
+-- 
+1.7.9.5
+

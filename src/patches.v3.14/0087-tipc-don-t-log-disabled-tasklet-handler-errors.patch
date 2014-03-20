@@ -1,0 +1,32 @@
+From a268aadef2f1faff684d9427da6f7ffcddd30648 Mon Sep 17 00:00:00 2001
+From: Erik Hugne <erik.hugne@ericsson.com>
+Date: Thu, 6 Mar 2014 14:40:21 +0100
+Subject: [PATCH 87/94] tipc: don't log disabled tasklet handler errors
+
+Failure to schedule a TIPC tasklet with tipc_k_signal because the
+tasklet handler is disabled is not an error. It means TIPC is
+currently in the process of shutting down. We remove the error
+logging in this case.
+
+Signed-off-by: Erik Hugne <erik.hugne@ericsson.com>
+Reviewed-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/handler.c |    1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/tipc/handler.c b/net/tipc/handler.c
+index e4bc8a2..1fabf16 100644
+--- a/net/tipc/handler.c
++++ b/net/tipc/handler.c
+@@ -58,7 +58,6 @@ unsigned int tipc_k_signal(Handler routine, unsigned long argument)
+ 
+ 	spin_lock_bh(&qitem_lock);
+ 	if (!handler_enabled) {
+-		pr_err("Signal request ignored by handler\n");
+ 		spin_unlock_bh(&qitem_lock);
+ 		return -ENOPROTOOPT;
+ 	}
+-- 
+1.7.9.5
+

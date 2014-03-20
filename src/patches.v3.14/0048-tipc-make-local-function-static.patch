@@ -1,0 +1,40 @@
+From f54c059699eaf0b225b9a45c1a517400c95c53c6 Mon Sep 17 00:00:00 2001
+From: stephen hemminger <stephen@networkplumber.org>
+Date: Sat, 4 Jan 2014 13:47:48 -0800
+Subject: [PATCH 48/94] tipc: make local function static
+
+Signed-off-by: Stephen Hemminger <stephen@networkplumber.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |    2 +-
+ net/tipc/link.h |    1 -
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index 3d73144..131a32a 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -1169,7 +1169,7 @@ reject:
+ /*
+  * tipc_link_push_packet: Push one unsent packet to the media
+  */
+-u32 tipc_link_push_packet(struct tipc_link *l_ptr)
++static u32 tipc_link_push_packet(struct tipc_link *l_ptr)
+ {
+ 	struct sk_buff *buf = l_ptr->first_out;
+ 	u32 r_q_size = l_ptr->retransm_queue_size;
+diff --git a/net/tipc/link.h b/net/tipc/link.h
+index 424b1df..0636ca9 100644
+--- a/net/tipc/link.h
++++ b/net/tipc/link.h
+@@ -221,7 +221,6 @@ void tipc_link_send_duplicate(struct tipc_link *l_ptr, struct tipc_link *dest);
+ void tipc_link_reset_fragments(struct tipc_link *l_ptr);
+ int tipc_link_is_up(struct tipc_link *l_ptr);
+ int tipc_link_is_active(struct tipc_link *l_ptr);
+-u32 tipc_link_push_packet(struct tipc_link *l_ptr);
+ void tipc_link_stop(struct tipc_link *l_ptr);
+ struct sk_buff *tipc_link_cmd_config(const void *req_tlv_area, int req_tlv_space, u16 cmd);
+ struct sk_buff *tipc_link_cmd_show_stats(const void *req_tlv_area, int req_tlv_space);
+-- 
+1.7.9.5
+

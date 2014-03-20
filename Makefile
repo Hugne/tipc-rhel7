@@ -8,6 +8,7 @@ all: srpm kmod
 
 srpm:
 	tar -cjf src/tipc.tar.bz2 -C src tipc
+	tar -cjf src/patches.v3.14.tar.bz2 -C src patches.v3.14
 	mock --configdir=$(CONFIGDIR) --spec=$(SPECFILE) --sources=$(SOURCES) --resultdir=$(OUTDIR) --buildsrpm
 
 kmod:

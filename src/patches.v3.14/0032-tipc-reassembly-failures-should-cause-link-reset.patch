@@ -1,0 +1,42 @@
+From 4a5fc0fd8d13e5b8f581e418c5f4407ad3dd0239 Mon Sep 17 00:00:00 2001
+From: Erik Hugne <erik.hugne@ericsson.com>
+Date: Wed, 6 Nov 2013 09:28:07 +0100
+Subject: [PATCH 32/94] tipc: reassembly failures should cause link reset
+
+If appending a received fragment to the pending fragment chain
+in a unicast link fails, the current code tries to force a retransmission
+of the fragment by decrementing the 'next received sequence number'
+field in the link. This is done under the assumption that the failure
+is caused by an out-of-memory situation, an assumption that does
+not hold true after the previous patch in this series.
+
+A failure to append a fragment can now only be caused by a protocol
+violation by the sending peer, and it must hence be assumed that it
+is either malicious or buggy.  Either way, the correct behavior is now
+to reset the link instead of trying to revert its sequence number.
+So, this is what we do in this commit.
+
+Signed-off-by: Erik Hugne <erik.hugne@ericsson.com>
+Reviewed-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index a63646e..cf465d6 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -1652,7 +1652,7 @@ deliver:
+ 				goto deliver;
+ 			}
+ 			if (ret == LINK_REASM_ERROR)
+-				l_ptr->next_in_no--;
++				tipc_link_reset(l_ptr);
+ 			tipc_node_unlock(n_ptr);
+ 			continue;
+ 		case CHANGEOVER_PROTOCOL:
+-- 
+1.7.9.5
+

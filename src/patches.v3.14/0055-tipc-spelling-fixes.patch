@@ -1,0 +1,45 @@
+From cc0526e4070547597f7134f71ab972ace46c139d Mon Sep 17 00:00:00 2001
+From: stephen hemminger <stephen@networkplumber.org>
+Date: Sun, 12 Jan 2014 12:48:00 -0800
+Subject: [PATCH 55/94] tipc: spelling fixes
+
+Signed-off-by: Stephen Hemminger <stephen@networkplumber.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+
+Conflicts:
+
+	net/tipc/bearer.c
+---
+ net/tipc/server.c |    2 +-
+ net/tipc/subscr.c |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/tipc/server.c b/net/tipc/server.c
+index fd3fa57..b635ca3 100644
+--- a/net/tipc/server.c
++++ b/net/tipc/server.c
+@@ -55,7 +55,7 @@
+  * @usr_data: user-specified field
+  * @rx_action: what to do when connection socket is active
+  * @outqueue: pointer to first outbound message in queue
+- * @outqueue_lock: controll access to the outqueue
++ * @outqueue_lock: control access to the outqueue
+  * @outqueue: list of connection objects for its server
+  * @swork: send work item
+  */
+diff --git a/net/tipc/subscr.c b/net/tipc/subscr.c
+index d38bb45..7cb0bd5 100644
+--- a/net/tipc/subscr.c
++++ b/net/tipc/subscr.c
+@@ -42,7 +42,7 @@
+ /**
+  * struct tipc_subscriber - TIPC network topology subscriber
+  * @conid: connection identifier to server connecting to subscriber
+- * @lock: controll access to subscriber
++ * @lock: control access to subscriber
+  * @subscription_list: list of subscription objects for this subscriber
+  */
+ struct tipc_subscriber {
+-- 
+1.7.9.5
+

@@ -1,0 +1,155 @@
+From c36897d86545708865ae594d6fd80b31ee71490c Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Tue, 10 Dec 2013 20:45:38 -0800
+Subject: [PATCH 38/94] tipc: eliminate redundant code with kfree_skb_list
+ routine
+
+sk_buff lists are currently relased by looping over the list and
+explicitly releasing each buffer.
+
+We replace all occurrences of this loop with a call to kfree_skb_list().
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Reviewed-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |   58 ++++++++-----------------------------------------------
+ net/tipc/node.c |    6 +-----
+ 2 files changed, 9 insertions(+), 55 deletions(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index fd340ad..ac26f8a 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -386,14 +386,7 @@ exit:
+  */
+ static void link_release_outqueue(struct tipc_link *l_ptr)
+ {
+-	struct sk_buff *buf = l_ptr->first_out;
+-	struct sk_buff *next;
+-
+-	while (buf) {
+-		next = buf->next;
+-		kfree_skb(buf);
+-		buf = next;
+-	}
++	kfree_skb_list(l_ptr->first_out);
+ 	l_ptr->first_out = NULL;
+ 	l_ptr->out_queue_size = 0;
+ }
+@@ -415,32 +408,15 @@ void tipc_link_reset_fragments(struct tipc_link *l_ptr)
+  */
+ void tipc_link_stop(struct tipc_link *l_ptr)
+ {
+-	struct sk_buff *buf;
+-	struct sk_buff *next;
+-
+-	buf = l_ptr->oldest_deferred_in;
+-	while (buf) {
+-		next = buf->next;
+-		kfree_skb(buf);
+-		buf = next;
+-	}
+-
+-	buf = l_ptr->first_out;
+-	while (buf) {
+-		next = buf->next;
+-		kfree_skb(buf);
+-		buf = next;
+-	}
+-
++	kfree_skb_list(l_ptr->oldest_deferred_in);
++	kfree_skb_list(l_ptr->first_out);
+ 	tipc_link_reset_fragments(l_ptr);
+-
+ 	kfree_skb(l_ptr->proto_msg_queue);
+ 	l_ptr->proto_msg_queue = NULL;
+ }
+ 
+ void tipc_link_reset(struct tipc_link *l_ptr)
+ {
+-	struct sk_buff *buf;
+ 	u32 prev_state = l_ptr->state;
+ 	u32 checkpoint = l_ptr->next_in_no;
+ 	int was_active_link = tipc_link_is_active(l_ptr);
+@@ -471,12 +447,7 @@ void tipc_link_reset(struct tipc_link *l_ptr)
+ 	link_release_outqueue(l_ptr);
+ 	kfree_skb(l_ptr->proto_msg_queue);
+ 	l_ptr->proto_msg_queue = NULL;
+-	buf = l_ptr->oldest_deferred_in;
+-	while (buf) {
+-		struct sk_buff *next = buf->next;
+-		kfree_skb(buf);
+-		buf = next;
+-	}
++	kfree_skb_list(l_ptr->oldest_deferred_in);
+ 	if (!list_empty(&l_ptr->waiting_ports))
+ 		tipc_link_wakeup_ports(l_ptr, 1);
+ 
+@@ -1124,10 +1095,7 @@ again:
+ 		if (copy_from_user(buf->data + fragm_crs, sect_crs, sz)) {
+ 			res = -EFAULT;
+ error:
+-			for (; buf_chain; buf_chain = buf) {
+-				buf = buf_chain->next;
+-				kfree_skb(buf_chain);
+-			}
++			kfree_skb_list(buf_chain);
+ 			return res;
+ 		}
+ 		sect_crs += sz;
+@@ -1177,18 +1145,12 @@ error:
+ 		if (l_ptr->max_pkt < max_pkt) {
+ 			sender->max_pkt = l_ptr->max_pkt;
+ 			tipc_node_unlock(node);
+-			for (; buf_chain; buf_chain = buf) {
+-				buf = buf_chain->next;
+-				kfree_skb(buf_chain);
+-			}
++			kfree_skb_list(buf_chain);
+ 			goto again;
+ 		}
+ 	} else {
+ reject:
+-		for (; buf_chain; buf_chain = buf) {
+-			buf = buf_chain->next;
+-			kfree_skb(buf_chain);
+-		}
++		kfree_skb_list(buf_chain);
+ 		return tipc_port_reject_sections(sender, hdr, msg_sect,
+ 						 len, TIPC_ERR_NO_NODE);
+ 	}
+@@ -2283,11 +2245,7 @@ static int link_send_long_buf(struct tipc_link *l_ptr, struct sk_buff *buf)
+ 		fragm = tipc_buf_acquire(fragm_sz + INT_H_SIZE);
+ 		if (fragm == NULL) {
+ 			kfree_skb(buf);
+-			while (buf_chain) {
+-				buf = buf_chain;
+-				buf_chain = buf_chain->next;
+-				kfree_skb(buf);
+-			}
++			kfree_skb_list(buf_chain);
+ 			return -ENOMEM;
+ 		}
+ 		msg_set_size(&fragm_hdr, fragm_sz + INT_H_SIZE);
+diff --git a/net/tipc/node.c b/net/tipc/node.c
+index 25100c0..bf1ac89 100644
+--- a/net/tipc/node.c
++++ b/net/tipc/node.c
+@@ -291,11 +291,7 @@ static void node_lost_contact(struct tipc_node *n_ptr)
+ 
+ 	/* Flush broadcast link info associated with lost node */
+ 	if (n_ptr->bclink.recv_permitted) {
+-		while (n_ptr->bclink.deferred_head) {
+-			struct sk_buff *buf = n_ptr->bclink.deferred_head;
+-			n_ptr->bclink.deferred_head = buf->next;
+-			kfree_skb(buf);
+-		}
++		kfree_skb_list(n_ptr->bclink.deferred_head);
+ 		n_ptr->bclink.deferred_size = 0;
+ 
+ 		if (n_ptr->bclink.reasm_head) {
+-- 
+1.7.9.5
+

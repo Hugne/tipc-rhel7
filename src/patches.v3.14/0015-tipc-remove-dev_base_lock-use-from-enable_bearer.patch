@@ -1,0 +1,87 @@
+From f34be0b2c06c73cc3b012c00634a2924fdc463f9 Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Mon, 17 Jun 2013 10:54:51 -0400
+Subject: [PATCH 15/94] tipc: remove dev_base_lock use from enable_bearer
+
+Convert enable_bearer() to RCU locking with dev_get_by_name().
+
+Based on a similar changeset in commit 840a185d ["aoe: remove
+dev_base_lock use from aoecmd_cfg_pkts()"] -- quoting that:
+
+  "dev_base_lock is the legacy way to lock the device list,
+   and is planned to disappear. (writers hold RTNL, readers
+   hold RCU lock)"
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Signed-off-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/eth_media.c |   13 ++-----------
+ net/tipc/ib_media.c  |   13 ++-----------
+ 2 files changed, 4 insertions(+), 22 deletions(-)
+
+diff --git a/net/tipc/eth_media.c b/net/tipc/eth_media.c
+index d617166..ee1e7c4 100644
+--- a/net/tipc/eth_media.c
++++ b/net/tipc/eth_media.c
+@@ -162,8 +162,7 @@ static void setup_bearer(struct work_struct *work)
+  */
+ static int enable_bearer(struct tipc_bearer *tb_ptr)
+ {
+-	struct net_device *dev = NULL;
+-	struct net_device *pdev = NULL;
++	struct net_device *dev;
+ 	struct eth_bearer *eb_ptr = &eth_bearers[0];
+ 	struct eth_bearer *stop = &eth_bearers[MAX_ETH_BEARERS];
+ 	char *driver_name = strchr((const char *)tb_ptr->name, ':') + 1;
+@@ -178,15 +177,7 @@ static int enable_bearer(struct tipc_bearer *tb_ptr)
+ 	}
+ 
+ 	/* Find device with specified name */
+-	read_lock(&dev_base_lock);
+-	for_each_netdev(&init_net, pdev) {
+-		if (!strncmp(pdev->name, driver_name, IFNAMSIZ)) {
+-			dev = pdev;
+-			dev_hold(dev);
+-			break;
+-		}
+-	}
+-	read_unlock(&dev_base_lock);
++	dev = dev_get_by_name(&init_net, driver_name);
+ 	if (!dev)
+ 		return -ENODEV;
+ 
+diff --git a/net/tipc/ib_media.c b/net/tipc/ib_media.c
+index 2a2864c..746c054 100644
+--- a/net/tipc/ib_media.c
++++ b/net/tipc/ib_media.c
+@@ -155,8 +155,7 @@ static void setup_bearer(struct work_struct *work)
+  */
+ static int enable_bearer(struct tipc_bearer *tb_ptr)
+ {
+-	struct net_device *dev = NULL;
+-	struct net_device *pdev = NULL;
++	struct net_device *dev;
+ 	struct ib_bearer *ib_ptr = &ib_bearers[0];
+ 	struct ib_bearer *stop = &ib_bearers[MAX_IB_BEARERS];
+ 	char *driver_name = strchr((const char *)tb_ptr->name, ':') + 1;
+@@ -171,15 +170,7 @@ static int enable_bearer(struct tipc_bearer *tb_ptr)
+ 	}
+ 
+ 	/* Find device with specified name */
+-	read_lock(&dev_base_lock);
+-	for_each_netdev(&init_net, pdev) {
+-		if (!strncmp(pdev->name, driver_name, IFNAMSIZ)) {
+-			dev = pdev;
+-			dev_hold(dev);
+-			break;
+-		}
+-	}
+-	read_unlock(&dev_base_lock);
++	dev = dev_get_by_name(&init_net, driver_name);
+ 	if (!dev)
+ 		return -ENODEV;
+ 
+-- 
+1.7.9.5
+

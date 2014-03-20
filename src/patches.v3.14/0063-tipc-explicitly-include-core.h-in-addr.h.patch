@@ -1,0 +1,37 @@
+From 487186548466dfb4e893e99ddad52374a8d3ae16 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20Bofj=C3=A4ll?= <andreas.bofjall@ericsson.com>
+Date: Wed, 12 Feb 2014 09:34:18 +0100
+Subject: [PATCH 63/94] tipc: explicitly include core.h in addr.h
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The inline functions in addr.h uses tipc_own_addr which is exported by
+core.h, but addr.h never actually includes it. It works because it is
+explicitly included where this is used, but it looks a bit strange.
+
+Include core.h in addr.h explicitly to make the dependency clearer.
+
+Signed-off-by: Andreas Bofjäll <andreas.bofjall@ericsson.com>
+Reviewed-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/addr.h |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/tipc/addr.h b/net/tipc/addr.h
+index 60b00ab..a74acf9 100644
+--- a/net/tipc/addr.h
++++ b/net/tipc/addr.h
+@@ -37,6 +37,8 @@
+ #ifndef _TIPC_ADDR_H
+ #define _TIPC_ADDR_H
+ 
++#include "core.h"
++
+ #define TIPC_ZONE_MASK		0xff000000u
+ #define TIPC_CLUSTER_MASK	0xfffff000u
+ 
+-- 
+1.7.9.5
+

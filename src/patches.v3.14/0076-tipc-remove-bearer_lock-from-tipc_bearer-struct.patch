@@ -1,0 +1,124 @@
+From eaf2e4f7a1b8f6abe17aee24785e21a835f01404 Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Thu, 13 Feb 2014 17:29:17 -0500
+Subject: [PATCH 76/94] tipc: remove bearer_lock from tipc_bearer struct
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+After the earlier commits ("tipc: remove 'links' list from
+tipc_bearer struct") and ("tipc: introduce new spinlock to protect
+struct link_req"), there is no longer any need to protect struct
+link_req or or any link list by use of bearer_lock. Furthermore,
+we have eliminated the need for using bearer_lock during downcalls
+(send) from the link to the bearer, since we have ensured that
+bearers always have a longer life cycle that their associated links,
+and always contain valid data.
+
+So, the only need now for a lock protecting bearers is for guaranteeing
+consistency of the bearer list itself. For this, it is sufficient, at
+least for the time being, to continue applying 'net_lock´ in write mode.
+
+By removing bearer_lock we also pre-empt introduction of issue b) descibed
+in the previous commit "tipc: remove 'links' list from tipc_bearer struct":
+
+"b) When the outer protection from net_lock is gone, taking
+    bearer_lock and node_lock in opposite order of method 1) and 2)
+    will become an obvious deadlock hazard".
+
+Therefore, we now eliminate the bearer_lock spinlock.
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Reviewed-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+
+Conflicts:
+
+	net/tipc/bearer.h
+---
+ net/tipc/bcast.c  |    1 -
+ net/tipc/bearer.c |   16 +++-------------
+ net/tipc/bearer.h |    2 --
+ 3 files changed, 3 insertions(+), 16 deletions(-)
+
+diff --git a/net/tipc/bcast.c b/net/tipc/bcast.c
+index af35f76..06a639c37 100644
+--- a/net/tipc/bcast.c
++++ b/net/tipc/bcast.c
+@@ -785,7 +785,6 @@ void tipc_bclink_init(void)
+ 	bcl->owner = &bclink->node;
+ 	bcl->max_pkt = MAX_PKT_DEFAULT_MCAST;
+ 	tipc_link_set_queue_limits(bcl, BCLINK_WIN_DEFAULT);
+-	spin_lock_init(&bcbearer->bearer.lock);
+ 	bcl->b_ptr = &bcbearer->bearer;
+ 	bcl->state = WORKING_WORKING;
+ 	strlcpy(bcl->name, tipc_bclink_name, TIPC_MAX_LINK_NAME);
+diff --git a/net/tipc/bearer.c b/net/tipc/bearer.c
+index 17e1ac0c..fb96332 100644
+--- a/net/tipc/bearer.c
++++ b/net/tipc/bearer.c
+@@ -327,7 +327,6 @@ restart:
+ 	b_ptr->net_plane = bearer_id + 'A';
+ 	b_ptr->active = 1;
+ 	b_ptr->priority = priority;
+-	spin_lock_init(&b_ptr->lock);
+ 
+ 	res = tipc_disc_create(b_ptr, &b_ptr->bcast_addr, disc_domain);
+ 	if (res) {
+@@ -351,9 +350,7 @@ int tipc_reset_bearer(struct tipc_bearer *b_ptr)
+ {
+ 	read_lock_bh(&tipc_net_lock);
+ 	pr_info("Resetting bearer <%s>\n", b_ptr->name);
+-	spin_lock_bh(&b_ptr->lock);
+ 	tipc_link_reset_list(b_ptr->identity);
+-	spin_unlock_bh(&b_ptr->lock);
+ 	read_unlock_bh(&tipc_net_lock);
+ 	return 0;
+ }
+@@ -365,19 +362,12 @@ int tipc_reset_bearer(struct tipc_bearer *b_ptr)
+  */
+ static void bearer_disable(struct tipc_bearer *b_ptr, bool shutting_down)
+ {
+-	struct tipc_link_req *temp_req;
+-
+ 	pr_info("Disabling bearer <%s>\n", b_ptr->name);
+-	spin_lock_bh(&b_ptr->lock);
+ 	b_ptr->media->disable_media(b_ptr);
+-	tipc_link_delete_list(b_ptr->identity, shutting_down);
+-	temp_req = b_ptr->link_req;
+-	b_ptr->link_req = NULL;
+-	spin_unlock_bh(&b_ptr->lock);
+-
+-	if (temp_req)
+-		tipc_disc_delete(temp_req);
+ 
++	tipc_link_delete_list(b_ptr->identity, shutting_down);
++	if (b_ptr->link_req)
++		tipc_disc_delete(b_ptr->link_req);
+ 	memset(b_ptr, 0, sizeof(struct tipc_bearer));
+ }
+ 
+diff --git a/net/tipc/bearer.h b/net/tipc/bearer.h
+index 9a002ab..5ba0a56 100644
+--- a/net/tipc/bearer.h
++++ b/net/tipc/bearer.h
+@@ -107,7 +107,6 @@ struct tipc_media {
+  * struct tipc_bearer - Generic TIPC bearer structure
+  * @usr_handle: pointer to additional media-specific information about bearer
+  * @mtu: max packet size bearer can support
+- * @lock: spinlock for controlling access to bearer
+  * @addr: media-specific address associated with bearer
+  * @name: bearer name (format = media:interface)
+  * @media: ptr to media structure associated with bearer
+@@ -130,7 +129,6 @@ struct tipc_bearer {
+ 	u32 mtu;				/* initalized by media */
+ 	struct tipc_media_addr addr;		/* initalized by media */
+ 	char name[TIPC_MAX_BEARER_NAME];
+-	spinlock_t lock;
+ 	struct tipc_media *media;
+ 	struct tipc_media_addr bcast_addr;
+ 	u32 priority;
+-- 
+1.7.9.5
+

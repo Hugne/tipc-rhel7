@@ -1,0 +1,48 @@
+From a2e8837c9d96f5cb8cb04d3312eab5d8f6154cc3 Mon Sep 17 00:00:00 2001
+From: wangweidong <wangweidong1@huawei.com>
+Date: Thu, 12 Dec 2013 09:36:40 +0800
+Subject: [PATCH 43/94] tipc: kill unnecessary goto's
+
+Remove a number of needless 'goto exit' in send_stream
+when the socket is in an unconnected state.
+This patch is cosmetic and does not alter the operation of
+TIPC in any way.
+
+Reviewed-by: Jon Maloy <jon.maloy@ericsson.com>
+Reviewed-by: Erik Hugne <erik.hugne@ericsson.com>
+Signed-off-by: Wang Weidong <wangweidong1@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/socket.c |   14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index 32037c5..844bf34 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -751,16 +751,14 @@ static int send_stream(struct kiocb *iocb, struct socket *sock,
+ 
+ 	/* Handle special cases where there is no connection */
+ 	if (unlikely(sock->state != SS_CONNECTED)) {
+-		if (sock->state == SS_UNCONNECTED) {
++		res = -ENOTCONN;
++
++		if (sock->state == SS_UNCONNECTED)
+ 			res = send_packet(NULL, sock, m, total_len);
+-			goto exit;
+-		} else if (sock->state == SS_DISCONNECTING) {
++		else if (sock->state == SS_DISCONNECTING)
+ 			res = -EPIPE;
+-			goto exit;
+-		} else {
+-			res = -ENOTCONN;
+-			goto exit;
+-		}
++
++		goto exit;
+ 	}
+ 
+ 	if (unlikely(m->msg_name)) {
+-- 
+1.7.9.5
+

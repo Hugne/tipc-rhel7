@@ -1,0 +1,84 @@
+From e07ebb38fbf9af49a4a9c6c6cf866019964f0cb2 Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Fri, 18 Oct 2013 07:23:16 +0200
+Subject: [PATCH 22/94] tipc: silence sparse warnings
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Eliminate below sparse warnings:
+
+net/tipc/link.c:1210:37: warning: cast removes address space of expression
+net/tipc/link.c:1218:59: warning: incorrect type in argument 2 (different address spaces)
+net/tipc/link.c:1218:59:    expected void const [noderef] <asn:1>*from
+net/tipc/link.c:1218:59:    got unsigned char const [usertype] *[assigned] sect_crs
+net/tipc/socket.c:341:49: warning: Using plain integer as NULL pointer
+net/tipc/socket.c:1371:36: warning: Using plain integer as NULL pointer
+net/tipc/socket.c:1694:57: warning: Using plain integer as NULL pointer
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Signed-off-by: Andreas Bofjäll <andreas.bofjall@ericsson.com>
+Reviewed-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c   |    4 ++--
+ net/tipc/socket.c |    6 +++---
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index b02a6dc..be73a1f 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -1160,7 +1160,7 @@ static int link_send_sections_long(struct tipc_port *sender,
+ 	struct tipc_msg fragm_hdr;
+ 	struct sk_buff *buf, *buf_chain, *prev;
+ 	u32 fragm_crs, fragm_rest, hsz, sect_rest;
+-	const unchar *sect_crs;
++	const unchar __user *sect_crs;
+ 	int curr_sect;
+ 	u32 fragm_no;
+ 	int res = 0;
+@@ -1202,7 +1202,7 @@ again:
+ 
+ 		if (!sect_rest) {
+ 			sect_rest = msg_sect[++curr_sect].iov_len;
+-			sect_crs = (const unchar *)msg_sect[curr_sect].iov_base;
++			sect_crs = msg_sect[curr_sect].iov_base;
+ 		}
+ 
+ 		if (sect_rest < fragm_rest)
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index d224382..3906527 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -338,7 +338,7 @@ static int release(struct socket *sock)
+ 		buf = __skb_dequeue(&sk->sk_receive_queue);
+ 		if (buf == NULL)
+ 			break;
+-		if (TIPC_SKB_CB(buf)->handle != 0)
++		if (TIPC_SKB_CB(buf)->handle != NULL)
+ 			kfree_skb(buf);
+ 		else {
+ 			if ((sock->state == SS_CONNECTING) ||
+@@ -1364,7 +1364,7 @@ static u32 filter_rcv(struct sock *sk, struct sk_buff *buf)
+ 		return TIPC_ERR_OVERLOAD;
+ 
+ 	/* Enqueue message */
+-	TIPC_SKB_CB(buf)->handle = 0;
++	TIPC_SKB_CB(buf)->handle = NULL;
+ 	__skb_queue_tail(&sk->sk_receive_queue, buf);
+ 	skb_set_owner_r(buf, sk);
+ 
+@@ -1687,7 +1687,7 @@ restart:
+ 		/* Disconnect and send a 'FIN+' or 'FIN-' message to peer */
+ 		buf = __skb_dequeue(&sk->sk_receive_queue);
+ 		if (buf) {
+-			if (TIPC_SKB_CB(buf)->handle != 0) {
++			if (TIPC_SKB_CB(buf)->handle != NULL) {
+ 				kfree_skb(buf);
+ 				goto restart;
+ 			}
+-- 
+1.7.9.5
+

@@ -1,0 +1,32 @@
+From 94fbd46fcc6d13b50e04b8f72ab4ce925fed7710 Mon Sep 17 00:00:00 2001
+From: wangweidong <wangweidong1@huawei.com>
+Date: Thu, 12 Dec 2013 09:36:41 +0800
+Subject: [PATCH 44/94] tipc: Use <linux/uaccess.h> instead of <asm/uaccess.h>
+
+As warned by checkpatch.pl, use #include <linux/uaccess.h>
+instead of <asm/uaccess.h>
+
+Reviewed-by: Jon Maloy <jon.maloy@ericsson.com>
+Reviewed-by: Erik Hugne <erik.hugne@ericsson.com>
+Signed-off-by: Wang Weidong <wangweidong1@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/core.h |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/tipc/core.h b/net/tipc/core.h
+index 94895d4..1ff477b 100644
+--- a/net/tipc/core.h
++++ b/net/tipc/core.h
+@@ -47,7 +47,7 @@
+ #include <linux/mm.h>
+ #include <linux/timer.h>
+ #include <linux/string.h>
+-#include <asm/uaccess.h>
++#include <linux/uaccess.h>
+ #include <linux/interrupt.h>
+ #include <linux/atomic.h>
+ #include <asm/hardirq.h>
+-- 
+1.7.9.5
+

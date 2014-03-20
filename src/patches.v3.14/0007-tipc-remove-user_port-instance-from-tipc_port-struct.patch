@@ -1,0 +1,196 @@
+From 706089584b93d8b3edce1c7d94f7486a00e2f77f Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Mon, 17 Jun 2013 10:54:43 -0400
+Subject: [PATCH 07/94] tipc: remove user_port instance from tipc_port
+ structure
+
+After the native API has been completely removed, the 'user_port'
+field in struct tipc_port becomes unused, and can be removed.
+As a consequence, the "usrmem" argument in tipc_msg_build() is no
+longer needed, and so we remove that one too.
+
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |   18 +++++++-----------
+ net/tipc/msg.c  |   15 +++++----------
+ net/tipc/msg.h  |    4 ++--
+ net/tipc/port.c |    8 +++-----
+ net/tipc/port.h |   14 --------------
+ 5 files changed, 17 insertions(+), 42 deletions(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index 0a4c3a1..d34429d 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -1081,7 +1081,7 @@ again:
+ 	 * (Must not hold any locks while building message.)
+ 	 */
+ 	res = tipc_msg_build(hdr, msg_sect, num_sect, total_len,
+-			     sender->max_pkt, !sender->user_port, &buf);
++			     sender->max_pkt, &buf);
+ 
+ 	read_lock_bh(&tipc_net_lock);
+ 	node = tipc_node_find(destaddr);
+@@ -1216,18 +1216,14 @@ again:
+ 		else
+ 			sz = fragm_rest;
+ 
+-		if (likely(!sender->user_port)) {
+-			if (copy_from_user(buf->data + fragm_crs, sect_crs, sz)) {
++		if (copy_from_user(buf->data + fragm_crs, sect_crs, sz)) {
+ error:
+-				for (; buf_chain; buf_chain = buf) {
+-					buf = buf_chain->next;
+-					kfree_skb(buf_chain);
+-				}
+-				return -EFAULT;
++			for (; buf_chain; buf_chain = buf) {
++				buf = buf_chain->next;
++				kfree_skb(buf_chain);
+ 			}
+-		} else
+-			skb_copy_to_linear_data_offset(buf, fragm_crs,
+-						       sect_crs, sz);
++			return -EFAULT;
++		}
+ 		sect_crs += sz;
+ 		sect_rest -= sz;
+ 		fragm_crs += sz;
+diff --git a/net/tipc/msg.c b/net/tipc/msg.c
+index f2db8a8..c2a2613 100644
+--- a/net/tipc/msg.c
++++ b/net/tipc/msg.c
+@@ -73,8 +73,8 @@ void tipc_msg_init(struct tipc_msg *m, u32 user, u32 type,
+  * Returns message data size or errno
+  */
+ int tipc_msg_build(struct tipc_msg *hdr, struct iovec const *msg_sect,
+-		   u32 num_sect, unsigned int total_len,
+-			    int max_size, int usrmem, struct sk_buff **buf)
++		   u32 num_sect, unsigned int total_len, int max_size,
++		   struct sk_buff **buf)
+ {
+ 	int dsz, sz, hsz, pos, res, cnt;
+ 
+@@ -92,14 +92,9 @@ int tipc_msg_build(struct tipc_msg *hdr, struct iovec const *msg_sect,
+ 		return -ENOMEM;
+ 	skb_copy_to_linear_data(*buf, hdr, hsz);
+ 	for (res = 1, cnt = 0; res && (cnt < num_sect); cnt++) {
+-		if (likely(usrmem))
+-			res = !copy_from_user((*buf)->data + pos,
+-					      msg_sect[cnt].iov_base,
+-					      msg_sect[cnt].iov_len);
+-		else
+-			skb_copy_to_linear_data_offset(*buf, pos,
+-						       msg_sect[cnt].iov_base,
+-						       msg_sect[cnt].iov_len);
++		skb_copy_to_linear_data_offset(*buf, pos,
++					       msg_sect[cnt].iov_base,
++					       msg_sect[cnt].iov_len);
+ 		pos += msg_sect[cnt].iov_len;
+ 	}
+ 	if (likely(res))
+diff --git a/net/tipc/msg.h b/net/tipc/msg.h
+index ba2a72b..511019a 100644
+--- a/net/tipc/msg.h
++++ b/net/tipc/msg.h
+@@ -722,6 +722,6 @@ u32 tipc_msg_tot_importance(struct tipc_msg *m);
+ void tipc_msg_init(struct tipc_msg *m, u32 user, u32 type,
+ 			    u32 hsize, u32 destnode);
+ int tipc_msg_build(struct tipc_msg *hdr, struct iovec const *msg_sect,
+-		   u32 num_sect, unsigned int total_len,
+-			    int max_size, int usrmem, struct sk_buff **buf);
++		   u32 num_sect, unsigned int total_len, int max_size,
++		   struct sk_buff **buf);
+ #endif
+diff --git a/net/tipc/port.c b/net/tipc/port.c
+index 0651522..f628c84 100644
+--- a/net/tipc/port.c
++++ b/net/tipc/port.c
+@@ -115,7 +115,7 @@ int tipc_multicast(u32 ref, struct tipc_name_seq const *seq,
+ 	msg_set_nameupper(hdr, seq->upper);
+ 	msg_set_hdr_sz(hdr, MCAST_H_SIZE);
+ 	res = tipc_msg_build(hdr, msg_sect, num_sect, total_len, MAX_MSG_SIZE,
+-			!oport->user_port, &buf);
++			     &buf);
+ 	if (unlikely(!buf))
+ 		return res;
+ 
+@@ -234,7 +234,6 @@ struct tipc_port *tipc_createport_raw(void *usr_handle,
+ 	INIT_LIST_HEAD(&p_ptr->subscription.nodesub_list);
+ 	p_ptr->dispatcher = dispatcher;
+ 	p_ptr->wakeup = wakeup;
+-	p_ptr->user_port = NULL;
+ 	k_init_timer(&p_ptr->timer, (Handler)port_timeout, ref);
+ 	INIT_LIST_HEAD(&p_ptr->publications);
+ 	INIT_LIST_HEAD(&p_ptr->port_list);
+@@ -271,7 +270,6 @@ int tipc_deleteport(u32 ref)
+ 		buf = port_build_peer_abort_msg(p_ptr, TIPC_ERR_NO_PORT);
+ 		tipc_nodesub_unsubscribe(&p_ptr->subscription);
+ 	}
+-	kfree(p_ptr->user_port);
+ 
+ 	spin_lock_bh(&tipc_port_list_lock);
+ 	list_del(&p_ptr->port_list);
+@@ -444,7 +442,7 @@ int tipc_port_reject_sections(struct tipc_port *p_ptr, struct tipc_msg *hdr,
+ 	int res;
+ 
+ 	res = tipc_msg_build(hdr, msg_sect, num_sect, total_len, MAX_MSG_SIZE,
+-			!p_ptr->user_port, &buf);
++			     &buf);
+ 	if (!buf)
+ 		return res;
+ 
+@@ -927,7 +925,7 @@ static int tipc_port_recv_sections(struct tipc_port *sender, unsigned int num_se
+ 	int res;
+ 
+ 	res = tipc_msg_build(&sender->phdr, msg_sect, num_sect, total_len,
+-			MAX_MSG_SIZE, !sender->user_port, &buf);
++			     MAX_MSG_SIZE, &buf);
+ 	if (likely(buf))
+ 		tipc_port_recv_msg(buf);
+ 	return res;
+diff --git a/net/tipc/port.h b/net/tipc/port.h
+index 7fd37c2..4779f0a 100644
+--- a/net/tipc/port.h
++++ b/net/tipc/port.h
+@@ -47,18 +47,6 @@
+ 				SKB_TRUESIZE(TIPC_MAX_USER_MSG_SIZE))
+ 
+ /**
+- * struct user_port - TIPC user port (used with native API)
+- * @usr_handle: user-specified field
+- * @ref: object reference to associated TIPC port
+- *
+- * <various callback routines>
+- */
+-struct user_port {
+-	void *usr_handle;
+-	u32 ref;
+-};
+-
+-/**
+  * struct tipc_port - TIPC port structure
+  * @usr_handle: pointer to additional user-defined information about port
+  * @lock: pointer to spinlock for controlling access to port
+@@ -74,7 +62,6 @@ struct user_port {
+  * @port_list: adjacent ports in TIPC's global list of ports
+  * @dispatcher: ptr to routine which handles received messages
+  * @wakeup: ptr to routine to call when port is no longer congested
+- * @user_port: ptr to user port associated with port (if any)
+  * @wait_list: adjacent ports in list of ports waiting on link congestion
+  * @waiting_pkts:
+  * @sent: # of non-empty messages sent by port
+@@ -101,7 +88,6 @@ struct tipc_port {
+ 	struct list_head port_list;
+ 	u32 (*dispatcher)(struct tipc_port *, struct sk_buff *);
+ 	void (*wakeup)(struct tipc_port *);
+-	struct user_port *user_port;
+ 	struct list_head wait_list;
+ 	u32 waiting_pkts;
+ 	u32 sent;
+-- 
+1.7.9.5
+

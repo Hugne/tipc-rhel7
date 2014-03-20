@@ -1,0 +1,67 @@
+From a331468fe9dd77dd39c1caa422f43731c771d8b3 Mon Sep 17 00:00:00 2001
+From: Jon Paul Maloy <jon.maloy@ericsson.com>
+Date: Thu, 13 Feb 2014 17:29:14 -0500
+Subject: [PATCH 73/94] tipc: rename stack variables in function
+ tipc_link_tunnel_rcv
+
+After the previous redesign of the tunnel reception algorithm and
+functions, we finalize it by renaming a couple of stack variables
+in tipc_tunnel_rcv(). This makes it more consistent with the naming
+scheme elsewhere in this part of the code.
+
+This change is purely cosmetic, with no functional changes.
+
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/link.c |   22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index 671a4db..c3ac60d 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -2184,29 +2184,29 @@ exit:
+ static int tipc_link_tunnel_rcv(struct tipc_node *n_ptr,
+ 				struct sk_buff **buf)
+ {
+-	struct sk_buff *tunnel_buf = *buf;
+-	struct tipc_link *dest_link;
+-	struct tipc_msg *tunnel_msg = buf_msg(tunnel_buf);
+-	u32 bearer_id = msg_bearer_id(tunnel_msg);
++	struct sk_buff *t_buf = *buf;
++	struct tipc_link *l_ptr;
++	struct tipc_msg *t_msg = buf_msg(t_buf);
++	u32 bearer_id = msg_bearer_id(t_msg);
+ 
+ 	*buf = NULL;
+ 
+ 	if (bearer_id >= MAX_BEARERS)
+ 		goto exit;
+ 
+-	dest_link = n_ptr->links[bearer_id];
+-	if (!dest_link)
++	l_ptr = n_ptr->links[bearer_id];
++	if (!l_ptr)
+ 		goto exit;
+ 
+-	if (msg_type(tunnel_msg) == DUPLICATE_MSG)
+-		tipc_link_dup_rcv(dest_link, tunnel_buf);
+-	else if (msg_type(tunnel_msg) == ORIGINAL_MSG)
+-		*buf = tipc_link_failover_rcv(dest_link, tunnel_buf);
++	if (msg_type(t_msg) == DUPLICATE_MSG)
++		tipc_link_dup_rcv(l_ptr, t_buf);
++	else if (msg_type(t_msg) == ORIGINAL_MSG)
++		*buf = tipc_link_failover_rcv(l_ptr, t_buf);
+ 	else
+ 		pr_warn("%sunknown tunnel pkt received\n", link_co_err);
+ 
+ exit:
+-	kfree_skb(tunnel_buf);
++	kfree_skb(t_buf);
+ 	return *buf != NULL;
+ }
+ 
+-- 
+1.7.9.5
+

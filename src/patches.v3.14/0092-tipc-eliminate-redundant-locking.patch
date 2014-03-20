@@ -1,0 +1,283 @@
+From 67a11107c34a040836c6050f242dc440995abbbe Mon Sep 17 00:00:00 2001
+From: Jon Paul Maloy <jon.maloy@ericsson.com>
+Date: Wed, 12 Mar 2014 11:31:11 -0400
+Subject: [PATCH 92/94] tipc: eliminate redundant locking
+
+The three functions tipc_portimportance(), tipc_portunreliable() and
+tipc_portunreturnable() and their corresponding tipc_set* functions,
+are all grabbing port_lock when accessing the targeted port. This is
+unnecessary in the current code, since these calls only are made from
+within socket downcalls, already protected by sock_lock.
+
+We remove the redundant locking. Also, since the functions now become
+trivial one-liners, we move them to port.h and make them inline.
+
+Signed-off-by: Jon Maloy <jon.maloy@ericsson.com>
+Reviewed-by: Ying Xue <ying.xue@windriver.com>
+Reviewed-by: Erik Hugne <erik.hugne@ericsson.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/port.c   |   96 +++--------------------------------------------------
+ net/tipc/port.h   |   42 ++++++++++++++++++-----
+ net/tipc/socket.c |   18 +++++-----
+ 3 files changed, 47 insertions(+), 109 deletions(-)
+
+diff --git a/net/tipc/port.c b/net/tipc/port.c
+index 5d24a19..ec8153f 100644
+--- a/net/tipc/port.c
++++ b/net/tipc/port.c
+@@ -258,64 +258,6 @@ void tipc_port_destroy(struct tipc_port *p_ptr)
+ 	tipc_net_route_msg(buf);
+ }
+ 
+-static int port_unreliable(struct tipc_port *p_ptr)
+-{
+-	return msg_src_droppable(&p_ptr->phdr);
+-}
+-
+-int tipc_portunreliable(u32 ref, unsigned int *isunreliable)
+-{
+-	struct tipc_port *p_ptr;
+-
+-	p_ptr = tipc_port_lock(ref);
+-	if (!p_ptr)
+-		return -EINVAL;
+-	*isunreliable = port_unreliable(p_ptr);
+-	tipc_port_unlock(p_ptr);
+-	return 0;
+-}
+-
+-int tipc_set_portunreliable(u32 ref, unsigned int isunreliable)
+-{
+-	struct tipc_port *p_ptr;
+-
+-	p_ptr = tipc_port_lock(ref);
+-	if (!p_ptr)
+-		return -EINVAL;
+-	msg_set_src_droppable(&p_ptr->phdr, (isunreliable != 0));
+-	tipc_port_unlock(p_ptr);
+-	return 0;
+-}
+-
+-static int port_unreturnable(struct tipc_port *p_ptr)
+-{
+-	return msg_dest_droppable(&p_ptr->phdr);
+-}
+-
+-int tipc_portunreturnable(u32 ref, unsigned int *isunrejectable)
+-{
+-	struct tipc_port *p_ptr;
+-
+-	p_ptr = tipc_port_lock(ref);
+-	if (!p_ptr)
+-		return -EINVAL;
+-	*isunrejectable = port_unreturnable(p_ptr);
+-	tipc_port_unlock(p_ptr);
+-	return 0;
+-}
+-
+-int tipc_set_portunreturnable(u32 ref, unsigned int isunrejectable)
+-{
+-	struct tipc_port *p_ptr;
+-
+-	p_ptr = tipc_port_lock(ref);
+-	if (!p_ptr)
+-		return -EINVAL;
+-	msg_set_dest_droppable(&p_ptr->phdr, (isunrejectable != 0));
+-	tipc_port_unlock(p_ptr);
+-	return 0;
+-}
+-
+ /*
+  * port_build_proto_msg(): create connection protocol message for port
+  *
+@@ -653,34 +595,6 @@ void tipc_acknowledge(u32 ref, u32 ack)
+ 	tipc_net_route_msg(buf);
+ }
+ 
+-int tipc_portimportance(u32 ref, unsigned int *importance)
+-{
+-	struct tipc_port *p_ptr;
+-
+-	p_ptr = tipc_port_lock(ref);
+-	if (!p_ptr)
+-		return -EINVAL;
+-	*importance = (unsigned int)msg_importance(&p_ptr->phdr);
+-	tipc_port_unlock(p_ptr);
+-	return 0;
+-}
+-
+-int tipc_set_portimportance(u32 ref, unsigned int imp)
+-{
+-	struct tipc_port *p_ptr;
+-
+-	if (imp > TIPC_CRITICAL_IMPORTANCE)
+-		return -EINVAL;
+-
+-	p_ptr = tipc_port_lock(ref);
+-	if (!p_ptr)
+-		return -EINVAL;
+-	msg_set_importance(&p_ptr->phdr, (u32)imp);
+-	tipc_port_unlock(p_ptr);
+-	return 0;
+-}
+-
+-
+ int tipc_publish(struct tipc_port *p_ptr, unsigned int scope,
+ 		 struct tipc_name_seq const *seq)
+ {
+@@ -919,7 +833,7 @@ int tipc_send(u32 ref, struct iovec const *msg_sect, unsigned int len)
+ 			return res;
+ 		}
+ 	}
+-	if (port_unreliable(p_ptr)) {
++	if (tipc_port_unreliable(p_ptr)) {
+ 		p_ptr->congested = 0;
+ 		return len;
+ 	}
+@@ -966,9 +880,9 @@ int tipc_send2name(u32 ref, struct tipc_name const *name, unsigned int domain,
+ 				p_ptr->sent++;
+ 			return res;
+ 		}
+-		if (port_unreliable(p_ptr)) {
++		if (tipc_port_unreliable(p_ptr))
+ 			return len;
+-		}
++
+ 		return -ELINKCONG;
+ 	}
+ 	return tipc_port_iovec_reject(p_ptr, msg, msg_sect, len,
+@@ -1009,8 +923,8 @@ int tipc_send2port(u32 ref, struct tipc_portid const *dest,
+ 			p_ptr->sent++;
+ 		return res;
+ 	}
+-	if (port_unreliable(p_ptr)) {
++	if (tipc_port_unreliable(p_ptr))
+ 		return len;
+-	}
++
+ 	return -ELINKCONG;
+ }
+diff --git a/net/tipc/port.h b/net/tipc/port.h
+index 1c90cbd..53ec5f0 100644
+--- a/net/tipc/port.h
++++ b/net/tipc/port.h
+@@ -109,15 +109,6 @@ void tipc_acknowledge(u32 port_ref, u32 ack);
+ 
+ void tipc_port_destroy(struct tipc_port *p_ptr);
+ 
+-int tipc_portimportance(u32 portref, unsigned int *importance);
+-int tipc_set_portimportance(u32 portref, unsigned int importance);
+-
+-int tipc_portunreliable(u32 portref, unsigned int *isunreliable);
+-int tipc_set_portunreliable(u32 portref, unsigned int isunreliable);
+-
+-int tipc_portunreturnable(u32 portref, unsigned int *isunreturnable);
+-int tipc_set_portunreturnable(u32 portref, unsigned int isunreturnable);
+-
+ int tipc_publish(struct tipc_port *p_ptr, unsigned int scope,
+ 		 struct tipc_name_seq const *name_seq);
+ int tipc_withdraw(struct tipc_port *p_ptr, unsigned int scope,
+@@ -201,4 +192,37 @@ static inline u32 tipc_port_peerport(struct tipc_port *p_ptr)
+ 	return msg_destport(&p_ptr->phdr);
+ }
+ 
++static inline  bool tipc_port_unreliable(struct tipc_port *port)
++{
++	return msg_src_droppable(&port->phdr) != 0;
++}
++
++static inline void tipc_port_set_unreliable(struct tipc_port *port,
++					    bool unreliable)
++{
++	msg_set_src_droppable(&port->phdr, unreliable ? 1 : 0);
++}
++
++static inline bool tipc_port_unreturnable(struct tipc_port *port)
++{
++	return msg_dest_droppable(&port->phdr) != 0;
++}
++
++static inline void tipc_port_set_unreturnable(struct tipc_port *port,
++					     bool unreturnable)
++{
++	msg_set_dest_droppable(&port->phdr, unreturnable ? 1 : 0);
++}
++
++
++static inline int tipc_port_importance(struct tipc_port *port)
++{
++	return msg_importance(&port->phdr);
++}
++
++static inline void tipc_port_set_importance(struct tipc_port *port, int imp)
++{
++	msg_set_importance(&port->phdr, (u32)imp);
++}
++
+ #endif
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index d147eaa..6c71988 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -197,9 +197,9 @@ static int tipc_sk_create(struct net *net, struct socket *sock, int protocol,
+ 	spin_unlock_bh(tp_ptr->lock);
+ 
+ 	if (sock->state == SS_READY) {
+-		tipc_set_portunreturnable(tp_ptr->ref, 1);
++		tipc_port_set_unreturnable(tp_ptr, true);
+ 		if (sock->type == SOCK_DGRAM)
+-			tipc_set_portunreliable(tp_ptr->ref, 1);
++			tipc_port_set_unreliable(tp_ptr, true);
+ 	}
+ 	return 0;
+ }
+@@ -1675,7 +1675,7 @@ static int tipc_accept(struct socket *sock, struct socket *new_sock, int flags)
+ 	tipc_port_connect(new_ref, &peer);
+ 	new_sock->state = SS_CONNECTED;
+ 
+-	tipc_set_portimportance(new_ref, msg_importance(msg));
++	tipc_port_set_importance(new_port, msg_importance(msg));
+ 	if (msg_named(msg)) {
+ 		new_port->conn_type = msg_nametype(msg);
+ 		new_port->conn_instance = msg_nameinst(msg);
+@@ -1797,16 +1797,16 @@ static int tipc_setsockopt(struct socket *sock, int lvl, int opt,
+ 
+ 	switch (opt) {
+ 	case TIPC_IMPORTANCE:
+-		res = tipc_set_portimportance(tport->ref, value);
++		tipc_port_set_importance(tport, value);
+ 		break;
+ 	case TIPC_SRC_DROPPABLE:
+ 		if (sock->type != SOCK_STREAM)
+-			res = tipc_set_portunreliable(tport->ref, value);
++			tipc_port_set_unreliable(tport, value);
+ 		else
+ 			res = -ENOPROTOOPT;
+ 		break;
+ 	case TIPC_DEST_DROPPABLE:
+-		res = tipc_set_portunreturnable(tport->ref, value);
++		tipc_port_set_unreturnable(tport, value);
+ 		break;
+ 	case TIPC_CONN_TIMEOUT:
+ 		tipc_sk(sk)->conn_timeout = value;
+@@ -1855,13 +1855,13 @@ static int tipc_getsockopt(struct socket *sock, int lvl, int opt,
+ 
+ 	switch (opt) {
+ 	case TIPC_IMPORTANCE:
+-		res = tipc_portimportance(tport->ref, &value);
++		value = tipc_port_importance(tport);
+ 		break;
+ 	case TIPC_SRC_DROPPABLE:
+-		res = tipc_portunreliable(tport->ref, &value);
++		value = tipc_port_unreliable(tport);
+ 		break;
+ 	case TIPC_DEST_DROPPABLE:
+-		res = tipc_portunreturnable(tport->ref, &value);
++		value = tipc_port_unreturnable(tport);
+ 		break;
+ 	case TIPC_CONN_TIMEOUT:
+ 		value = tipc_sk(sk)->conn_timeout;
+-- 
+1.7.9.5
+

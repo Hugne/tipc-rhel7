@@ -1,0 +1,178 @@
+From 7c9a50599a833d52fdac8e71e98da471bb526030 Mon Sep 17 00:00:00 2001
+From: Erik Hugne <erik.hugne@ericsson.com>
+Date: Thu, 20 Mar 2014 13:11:57 +0100
+Subject: [PATCH 00/94] *** SUBJECT HERE ***
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+*** BLURB HERE ***
+
+Andreas Bofjäll (1):
+  tipc: explicitly include core.h in addr.h
+
+Andy Shevchenko (1):
+  net/tipc: use %*phC to dump small buffers in hex form
+
+Erik Hugne (14):
+  tipc: allow implicit connect for stream sockets
+  tipc: set sk_err correctly when connection fails
+  tipc: simplify the link lookup routine
+  tipc: don't reroute message fragments
+  tipc: message reassembly using fragment chain
+  tipc: reassembly failures should cause link reset
+  tipc: fix dereference before check warning
+  tipc: remove interface state mirroring in bearer
+  tipc: correctly unlink packets from deferred packet queue
+  tipc: fix message corruption bug for deferred packets
+  tipc: failed transmissions should return error
+  tipc: drop subscriber connection id invalidation
+  tipc: fix memory leak during module removal
+  tipc: don't log disabled tasklet handler errors
+
+Hannes Frederic Sowa (1):
+  net: rework recvmsg handler msg_name and msg_namelen logic
+
+Joe Perches (1):
+  net: misc: Remove extern from function prototypes
+
+Jon Paul Maloy (24):
+  tipc: correct the order of stopping services at rmmod
+  tipc: initiate media type array at compile time
+  tipc: improve naming and comment consistency in media layer
+  tipc: rename functions related to link failover and improve comments
+  tipc: remove 'has_redundant_link' flag from STATE link protocol
+    messages
+  tipc: make link start event synchronous
+  tipc: stricter behavior of message reassembly function
+  tipc: change reception of tunnelled duplicate packets
+  tipc: change reception of tunnelled failover packets
+  tipc: change signature of tunnelling reception function
+  tipc: more cleanup of tunnelling reception function
+  tipc: rename stack variables in function tipc_link_tunnel_rcv
+  tipc: changes to general packet reception algorithm
+  tipc: delay delete of link when failover is needed
+  tipc: add node_lock protection to link lookup function
+  tipc: fix a loop style problem
+  tipc: correct usage of spin_lock() vs spin_lock_bh()
+  tipc: replace reference table rwlock with spinlock
+  tipc: remove redundant 'peer_name' field in struct tipc_sock
+  tipc: aggregate port structure into socket structure
+  tipc: eliminate upcall function pointers between port and socket
+  tipc: eliminate redundant locking
+  tipc: align usage of variable names and macros in socket
+  tipc: eliminate redundant lookups in registry
+
+Paul Gortmaker (1):
+  tipc: cosmetic realignment of function arguments
+
+Steffen Hurrle (1):
+  net: add build-time checks for msg->msg_name size
+
+Ying Xue (41):
+  tipc: change socket buffer overflow control to respect sk_rcvbuf
+  tipc: introduce new TIPC server infrastructure
+  tipc: convert topology server to use new server facility
+  tipc: convert configuration server to use new server facility
+  tipc: delete code orphaned by new server infrastructure
+  tipc: remove user_port instance from tipc_port structure
+  tipc: rename tipc_createport_raw to tipc_createport
+  tipc: convert config_lock from spinlock to mutex
+  tipc: save sock structure pointer instead of void pointer to
+    tipc_port
+  tipc: enhance priority of link protocol packet
+  tipc: make tipc_link_send_sections_fast exit earlier
+  tipc: fix wrong return value for link_send_sections_long routine
+  tipc: remove dev_base_lock use from enable_bearer
+  tipc: fix oops when creating server socket fails
+  tipc: don't use memcpy to copy from user space
+  tipc: remove iovec length parameter from all sending functions
+  tipc: silence sparse warnings
+  tipc: make bearer and media naming consistent
+  tipc: avoid unnecessary lookup for tipc bearer instance
+  tipc: correct return value of recv_msg routine
+  tipc: correct return value of link_cmd_set_value routine
+  tipc: remove two indentation levels in tipc_recv_msg routine
+  tipc: protect handler_enabled variable with qitem_lock spin lock
+  tipc: eliminate redundant code with kfree_skb_list routine
+  tipc: remove unused 'blocked' flag from tipc_link struct
+  tipc: fix deadlock during socket release
+  tipc: introduce new spinlock to protect struct link_req
+  tipc: standardize connect routine
+  tipc: standardize accept routine
+  tipc: standardize sendmsg routine of connectionless socket
+  tipc: standardize sendmsg routine of connected socket
+  tipc: standardize recvmsg routine
+  tipc: move code for resetting links from bearer.c to link.c
+  tipc: move code for deleting links from bearer.c to link.c
+  tipc: redefine 'started' flag in struct link to bitmap
+  tipc: remove 'links' list from tipc_bearer struct
+  tipc: remove bearer_lock from tipc_bearer struct
+  tipc: align tipc function names with common naming practice in the
+    network
+  tipc: remove all enabled flags from all tipc components
+  tipc: allow connection shutdown callback to be invoked in advance
+  tipc: fix connection refcount leak
+
+dingtianhong (1):
+  tipc: avoid possible deadlock while enable and disable bearer
+
+stephen hemminger (3):
+  tipc: make local function static
+  tipc: remove unused code
+  tipc: spelling fixes
+
+wangweidong (5):
+  tipc: remove unnecessary variables and conditions
+  tipc: kill unnecessary goto's
+  tipc: Use <linux/uaccess.h> instead of <asm/uaccess.h>
+  tipc: change lock_sock order in connect()
+  tipc: make the code look more readable
+
+ net/tipc/Makefile      |    3 +-
+ net/tipc/addr.h        |    2 +
+ net/tipc/bcast.c       |   49 +-
+ net/tipc/bcast.h       |    7 +-
+ net/tipc/bearer.c      |  182 ++-----
+ net/tipc/bearer.h      |   32 +-
+ net/tipc/config.c      |  114 ++---
+ net/tipc/core.c        |   82 +++-
+ net/tipc/core.h        |   36 +-
+ net/tipc/discover.c    |   39 +-
+ net/tipc/discover.h    |    2 +-
+ net/tipc/eth_media.c   |  103 ++--
+ net/tipc/handler.c     |   12 +-
+ net/tipc/ib_media.c    |   96 ++--
+ net/tipc/link.c        | 1261 +++++++++++++++++++++---------------------------
+ net/tipc/link.h        |   90 ++--
+ net/tipc/msg.c         |   36 +-
+ net/tipc/msg.h         |   19 +-
+ net/tipc/name_distr.c  |    8 +-
+ net/tipc/name_distr.h  |    2 +-
+ net/tipc/name_table.c  |   53 +-
+ net/tipc/name_table.h  |   11 +-
+ net/tipc/net.c         |   10 +-
+ net/tipc/netlink.c     |    8 -
+ net/tipc/node.c        |   34 +-
+ net/tipc/node.h        |    9 +-
+ net/tipc/node_subscr.c |    2 +-
+ net/tipc/port.c        |  677 +++++---------------------
+ net/tipc/port.h        |  207 ++++----
+ net/tipc/ref.c         |   30 +-
+ net/tipc/ref.h         |    1 -
+ net/tipc/server.c      |  600 +++++++++++++++++++++++
+ net/tipc/server.h      |   92 ++++
+ net/tipc/socket.c      |  890 +++++++++++++++++++---------------
+ net/tipc/socket.h      |   72 +++
+ net/tipc/subscr.c      |  339 ++++---------
+ net/tipc/subscr.h      |   21 +-
+ net/tipc/sysctl.c      |   64 +++
+ 38 files changed, 2635 insertions(+), 2660 deletions(-)
+ create mode 100644 net/tipc/server.c
+ create mode 100644 net/tipc/server.h
+ create mode 100644 net/tipc/socket.h
+ create mode 100644 net/tipc/sysctl.c
+
+-- 
+1.7.9.5
+

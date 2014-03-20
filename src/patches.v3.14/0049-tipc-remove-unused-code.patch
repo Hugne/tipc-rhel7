@@ -1,0 +1,94 @@
+From d0e80b9efe33c189f6ee9a266367c1ac05ae5337 Mon Sep 17 00:00:00 2001
+From: stephen hemminger <stephen@networkplumber.org>
+Date: Sat, 4 Jan 2014 13:49:14 -0800
+Subject: [PATCH 49/94] tipc: remove unused code
+
+Remove dead code;
+       tipc_bearer_find_interface
+       tipc_node_redundant_links
+
+This may break out of tree version of TIPC if there still is one.
+But that maybe a good thing :-)
+
+Signed-off-by: Stephen Hemminger <stephen@networkplumber.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/bearer.c |   19 -------------------
+ net/tipc/bearer.h |    1 -
+ net/tipc/node.c   |    5 -----
+ net/tipc/node.h   |    1 -
+ 4 files changed, 26 deletions(-)
+
+diff --git a/net/tipc/bearer.c b/net/tipc/bearer.c
+index 2411bac..9559d1a 100644
+--- a/net/tipc/bearer.c
++++ b/net/tipc/bearer.c
+@@ -185,25 +185,6 @@ struct tipc_bearer *tipc_bearer_find(const char *name)
+ }
+ 
+ /**
+- * tipc_bearer_find_interface - locates bearer object with matching interface name
+- */
+-struct tipc_bearer *tipc_bearer_find_interface(const char *if_name)
+-{
+-	struct tipc_bearer *b_ptr;
+-	char *b_if_name;
+-	u32 i;
+-
+-	for (i = 0, b_ptr = tipc_bearers; i < MAX_BEARERS; i++, b_ptr++) {
+-		if (!b_ptr->active)
+-			continue;
+-		b_if_name = strchr(b_ptr->name, ':') + 1;
+-		if (!strcmp(b_if_name, if_name))
+-			return b_ptr;
+-	}
+-	return NULL;
+-}
+-
+-/**
+  * tipc_bearer_get_names - record names of bearers in buffer
+  */
+ struct sk_buff *tipc_bearer_get_names(void)
+diff --git a/net/tipc/bearer.h b/net/tipc/bearer.h
+index e50266a..391e3e7 100644
+--- a/net/tipc/bearer.h
++++ b/net/tipc/bearer.h
+@@ -190,7 +190,6 @@ struct sk_buff *tipc_bearer_get_names(void);
+ void tipc_bearer_add_dest(struct tipc_bearer *b_ptr, u32 dest);
+ void tipc_bearer_remove_dest(struct tipc_bearer *b_ptr, u32 dest);
+ struct tipc_bearer *tipc_bearer_find(const char *name);
+-struct tipc_bearer *tipc_bearer_find_interface(const char *if_name);
+ struct tipc_media *tipc_media_find(const char *name);
+ void tipc_bearer_stop(void);
+ 
+diff --git a/net/tipc/node.c b/net/tipc/node.c
+index bf1ac89..e167d26 100644
+--- a/net/tipc/node.c
++++ b/net/tipc/node.c
+@@ -235,11 +235,6 @@ int tipc_node_active_links(struct tipc_node *n_ptr)
+ 	return n_ptr->active_links[0] != NULL;
+ }
+ 
+-int tipc_node_redundant_links(struct tipc_node *n_ptr)
+-{
+-	return n_ptr->working_links > 1;
+-}
+-
+ int tipc_node_is_up(struct tipc_node *n_ptr)
+ {
+ 	return tipc_node_active_links(n_ptr);
+diff --git a/net/tipc/node.h b/net/tipc/node.h
+index e5e96c0..d4bb654 100644
+--- a/net/tipc/node.h
++++ b/net/tipc/node.h
+@@ -115,7 +115,6 @@ void tipc_node_detach_link(struct tipc_node *n_ptr, struct tipc_link *l_ptr);
+ void tipc_node_link_down(struct tipc_node *n_ptr, struct tipc_link *l_ptr);
+ void tipc_node_link_up(struct tipc_node *n_ptr, struct tipc_link *l_ptr);
+ int tipc_node_active_links(struct tipc_node *n_ptr);
+-int tipc_node_redundant_links(struct tipc_node *n_ptr);
+ int tipc_node_is_up(struct tipc_node *n_ptr);
+ struct sk_buff *tipc_node_get_links(const void *req_tlv_area, int req_tlv_space);
+ struct sk_buff *tipc_node_get_nodes(const void *req_tlv_area, int req_tlv_space);
+-- 
+1.7.9.5
+

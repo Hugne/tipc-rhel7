@@ -1,0 +1,281 @@
+From dd6d4651d6bf72740c575f140712291aa2efd408 Mon Sep 17 00:00:00 2001
+From: Ying Xue <ying.xue@windriver.com>
+Date: Mon, 17 Jun 2013 10:54:37 -0400
+Subject: [PATCH 01/94] tipc: change socket buffer overflow control to respect
+ sk_rcvbuf
+
+As per feedback from the netdev community, we change the buffer
+overflow protection algorithm in receiving sockets so that it
+always respects the nominal upper limit set in sk_rcvbuf.
+
+Instead of scaling up from a small sk_rcvbuf value, which leads to
+violation of the configured sk_rcvbuf limit, we now calculate the
+weighted per-message limit by scaling down from a much bigger value,
+still in the same field, according to the importance priority of the
+received message.
+
+To allow for administrative tunability of the socket receive buffer
+size, we create a tipc_rmem sysctl variable to allow the user to
+configure an even bigger value via sysctl command.  It is a size of
+three (min/default/max) to be consistent with things like tcp_rmem.
+
+By default, the value initialized in tipc_rmem[1] is equal to the
+receive socket size needed by a TIPC_CRITICAL_IMPORTANCE message.
+This value is also set as the default value of sk_rcvbuf.
+
+Originally-by: Jon Maloy <jon.maloy@ericsson.com>
+Cc: Neil Horman <nhorman@tuxdriver.com>
+Cc: Jon Maloy <jon.maloy@ericsson.com>
+[Ying: added sysctl variation to Jon's original patch]
+Signed-off-by: Ying Xue <ying.xue@windriver.com>
+[PG: don't compile sysctl.c if not config'd; add Documentation]
+Signed-off-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/Makefile |    1 +
+ net/tipc/core.c   |   12 ++++++++--
+ net/tipc/core.h   |    9 ++++++++
+ net/tipc/port.h   |    2 ++
+ net/tipc/socket.c |   19 ++++++++--------
+ net/tipc/sysctl.c |   64 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 96 insertions(+), 11 deletions(-)
+ create mode 100644 net/tipc/sysctl.c
+
+diff --git a/net/tipc/Makefile b/net/tipc/Makefile
+index 4df8e02..02636d0 100644
+--- a/net/tipc/Makefile
++++ b/net/tipc/Makefile
+@@ -11,3 +11,4 @@ tipc-y	+= addr.o bcast.o bearer.o config.o \
+ 	   socket.o log.o eth_media.o
+ 
+ tipc-$(CONFIG_TIPC_MEDIA_IB)	+= ib_media.o
++tipc-$(CONFIG_SYSCTL)		+= sysctl.o
+diff --git a/net/tipc/core.c b/net/tipc/core.c
+index 7ec2c1e..b0e42a0 100644
+--- a/net/tipc/core.c
++++ b/net/tipc/core.c
+@@ -39,6 +39,7 @@
+ #include "name_table.h"
+ #include "subscr.h"
+ #include "config.h"
++#include "port.h"
+ 
+ #include <linux/module.h>
+ 
+@@ -50,7 +51,7 @@ u32 tipc_own_addr __read_mostly;
+ int tipc_max_ports __read_mostly;
+ int tipc_net_id __read_mostly;
+ int tipc_remote_management __read_mostly;
+-
++int sysctl_tipc_rmem[3] __read_mostly;	/* min/default/max */
+ 
+ /**
+  * tipc_buf_acquire - creates a TIPC message buffer
+@@ -118,6 +119,7 @@ static void tipc_core_stop(void)
+ 	tipc_nametbl_stop();
+ 	tipc_ref_table_stop();
+ 	tipc_socket_stop();
++	tipc_unregister_sysctl();
+ }
+ 
+ /**
+@@ -142,13 +144,14 @@ static int tipc_core_start(void)
+ 		res = tipc_netlink_start();
+ 	if (!res)
+ 		res = tipc_socket_init();
++	if (!res)
++		res = tipc_register_sysctl();
+ 	if (res)
+ 		tipc_core_stop();
+ 
+ 	return res;
+ }
+ 
+-
+ static int __init tipc_init(void)
+ {
+ 	int res;
+@@ -160,6 +163,11 @@ static int __init tipc_init(void)
+ 	tipc_max_ports = CONFIG_TIPC_PORTS;
+ 	tipc_net_id = 4711;
+ 
++	sysctl_tipc_rmem[0] = CONN_OVERLOAD_LIMIT >> 4 << TIPC_LOW_IMPORTANCE;
++	sysctl_tipc_rmem[1] = CONN_OVERLOAD_LIMIT >> 4 <<
++			      TIPC_CRITICAL_IMPORTANCE;
++	sysctl_tipc_rmem[2] = CONN_OVERLOAD_LIMIT;
++
+ 	res = tipc_core_start();
+ 	if (res)
+ 		pr_err("Unable to start in single node mode\n");
+diff --git a/net/tipc/core.h b/net/tipc/core.h
+index 0207db0..fe7f2b7 100644
+--- a/net/tipc/core.h
++++ b/net/tipc/core.h
+@@ -80,6 +80,7 @@ extern u32 tipc_own_addr __read_mostly;
+ extern int tipc_max_ports __read_mostly;
+ extern int tipc_net_id __read_mostly;
+ extern int tipc_remote_management __read_mostly;
++extern int sysctl_tipc_rmem[3] __read_mostly;
+ 
+ /*
+  * Other global variables
+@@ -97,6 +98,14 @@ extern void tipc_netlink_stop(void);
+ extern int  tipc_socket_init(void);
+ extern void tipc_socket_stop(void);
+ 
++#ifdef CONFIG_SYSCTL
++extern int tipc_register_sysctl(void);
++extern void tipc_unregister_sysctl(void);
++#else
++#define tipc_register_sysctl() 0
++#define tipc_unregister_sysctl()
++#endif
++
+ /*
+  * TIPC timer and signal code
+  */
+diff --git a/net/tipc/port.h b/net/tipc/port.h
+index fb66e2e..2485649 100644
+--- a/net/tipc/port.h
++++ b/net/tipc/port.h
+@@ -43,6 +43,8 @@
+ #include "node_subscr.h"
+ 
+ #define TIPC_FLOW_CONTROL_WIN 512
++#define CONN_OVERLOAD_LIMIT	((TIPC_FLOW_CONTROL_WIN * 2 + 1) * \
++				SKB_TRUESIZE(TIPC_MAX_USER_MSG_SIZE))
+ 
+ typedef void (*tipc_msg_err_event) (void *usr_handle, u32 portref,
+ 		struct sk_buff **buf, unsigned char const *data,
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index 515ce38..aba4255 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -43,8 +43,6 @@
+ #define SS_LISTENING	-1	/* socket is listening */
+ #define SS_READY	-2	/* socket is connectionless */
+ 
+-#define CONN_OVERLOAD_LIMIT	((TIPC_FLOW_CONTROL_WIN * 2 + 1) * \
+-				SKB_TRUESIZE(TIPC_MAX_USER_MSG_SIZE))
+ #define CONN_TIMEOUT_DEFAULT	8000	/* default connect timeout = 8s */
+ 
+ struct tipc_sock {
+@@ -203,6 +201,7 @@ static int tipc_create(struct net *net, struct socket *sock, int protocol,
+ 
+ 	sock_init_data(sock, sk);
+ 	sk->sk_backlog_rcv = backlog_rcv;
++	sk->sk_rcvbuf = sysctl_tipc_rmem[1];
+ 	sk->sk_data_ready = tipc_data_ready;
+ 	sk->sk_write_space = tipc_write_space;
+ 	tipc_sk(sk)->p = tp_ptr;
+@@ -1233,10 +1232,10 @@ static u32 filter_connect(struct tipc_sock *tsock, struct sk_buff **buf)
+  * For all connectionless messages, by default new queue limits are
+  * as belows:
+  *
+- * TIPC_LOW_IMPORTANCE       (5MB)
+- * TIPC_MEDIUM_IMPORTANCE    (10MB)
+- * TIPC_HIGH_IMPORTANCE      (20MB)
+- * TIPC_CRITICAL_IMPORTANCE  (40MB)
++ * TIPC_LOW_IMPORTANCE       (4 MB)
++ * TIPC_MEDIUM_IMPORTANCE    (8 MB)
++ * TIPC_HIGH_IMPORTANCE      (16 MB)
++ * TIPC_CRITICAL_IMPORTANCE  (32 MB)
+  *
+  * Returns overload limit according to corresponding message importance
+  */
+@@ -1246,9 +1245,10 @@ static unsigned int rcvbuf_limit(struct sock *sk, struct sk_buff *buf)
+ 	unsigned int limit;
+ 
+ 	if (msg_connected(msg))
+-		limit = CONN_OVERLOAD_LIMIT;
++		limit = sysctl_tipc_rmem[2];
+ 	else
+-		limit = sk->sk_rcvbuf << (msg_importance(msg) + 5);
++		limit = sk->sk_rcvbuf >> TIPC_CRITICAL_IMPORTANCE <<
++			msg_importance(msg);
+ 	return limit;
+ }
+ 
+@@ -1847,7 +1847,8 @@ static const struct net_proto_family tipc_family_ops = {
+ static struct proto tipc_proto = {
+ 	.name		= "TIPC",
+ 	.owner		= THIS_MODULE,
+-	.obj_size	= sizeof(struct tipc_sock)
++	.obj_size	= sizeof(struct tipc_sock),
++	.sysctl_rmem	= sysctl_tipc_rmem
+ };
+ 
+ /**
+diff --git a/net/tipc/sysctl.c b/net/tipc/sysctl.c
+new file mode 100644
+index 0000000..f3fef93
+--- /dev/null
++++ b/net/tipc/sysctl.c
+@@ -0,0 +1,64 @@
++/*
++ * net/tipc/sysctl.c: sysctl interface to TIPC subsystem
++ *
++ * Copyright (c) 2013, Wind River Systems
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ * 3. Neither the names of the copyright holders nor the names of its
++ *    contributors may be used to endorse or promote products derived from
++ *    this software without specific prior written permission.
++ *
++ * Alternatively, this software may be distributed under the terms of the
++ * GNU General Public License ("GPL") version 2 as published by the Free
++ * Software Foundation.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
++ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ * POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include "core.h"
++
++#include <linux/sysctl.h>
++
++static struct ctl_table_header *tipc_ctl_hdr;
++
++static struct ctl_table tipc_table[] = {
++	{
++		.procname	= "tipc_rmem",
++		.data		= &sysctl_tipc_rmem,
++		.maxlen		= sizeof(sysctl_tipc_rmem),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec,
++	},
++	{}
++};
++
++int tipc_register_sysctl(void)
++{
++	tipc_ctl_hdr = register_net_sysctl(&init_net, "net/tipc", tipc_table);
++	if (tipc_ctl_hdr == NULL)
++		return -ENOMEM;
++	return 0;
++}
++
++void tipc_unregister_sysctl(void)
++{
++	unregister_net_sysctl_table(tipc_ctl_hdr);
++}
+-- 
+1.7.9.5
+

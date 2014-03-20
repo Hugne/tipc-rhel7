@@ -1,0 +1,41 @@
+From d610771e5deb1e12a151d5bc25e5f15d4dbc7dba Mon Sep 17 00:00:00 2001
+From: wangweidong <wangweidong1@huawei.com>
+Date: Thu, 12 Dec 2013 09:36:42 +0800
+Subject: [PATCH 45/94] tipc: change lock_sock order in connect()
+
+Instead of reaquiring the socket lock and taking the normal exit
+path when a connection times out, we bail out early with a
+return -ETIMEDOUT.
+
+Reviewed-by: Jon Maloy <jon.maloy@ericsson.com>
+Reviewed-by: Erik Hugne <erik.hugne@ericsson.com>
+Signed-off-by: Wang Weidong <wangweidong1@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/socket.c |    6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index 844bf34..83f466e 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -1507,14 +1507,12 @@ static int connect(struct socket *sock, struct sockaddr *dest, int destlen,
+ 				sock->state != SS_CONNECTING,
+ 				timeout ? (long)msecs_to_jiffies(timeout)
+ 					: MAX_SCHEDULE_TIMEOUT);
+-		lock_sock(sk);
+ 		if (res <= 0) {
+ 			if (res == 0)
+ 				res = -ETIMEDOUT;
+-			else
+-				; /* leave "res" unchanged */
+-			goto exit;
++			return res;
+ 		}
++		lock_sock(sk);
+ 	}
+ 
+ 	if (unlikely(sock->state == SS_DISCONNECTING))
+-- 
+1.7.9.5
+
