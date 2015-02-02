@@ -1,5 +1,2 @@
 *~
-out/*
-src/tipc.tar.bz2
-mock/cache
-mock/chroot
+*.bz2

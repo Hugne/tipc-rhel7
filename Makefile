@@ -1,24 +1,17 @@
-CONFIGDIR=./mock/
-SPECFILE=./src/tipc-kmod.spec
-SOURCES=./src/
-OUTDIR=./out
-SRPM=./out/tipc*.src.rpm
+RPMBUILD=~/rpmbuild/
 
 all: srpm kmod
 
 srpm:
-	tar -cjf src/tipc.tar.bz2 -C src tipc
-	tar -cjf src/patches.v3.14.tar.bz2 -C src patches.v3.14
-	mock --configdir=$(CONFIGDIR) --spec=$(SPECFILE) --sources=$(SOURCES) --resultdir=$(OUTDIR) --buildsrpm
+	mkdir -p $(RPMBUILD)/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+	tar -cjf $(RPMBUILD)/SOURCES/tipc.tar.bz2 -C src tipc
+	tar -cjf $(RPMBUILD)/SOURCES/patches.v3.14.tar.bz2 -C src patches.v3.14
+	cp src/tipc-kmodtool.sh $(RPMBUILD)/SOURCES
+	cp src/tipc-kmod.spec $(RPMBUILD)/SPECS
+	rpmbuild -bs $(RPMBUILD)/SPECS/tipc-kmod.spec
 
 kmod:
-	mock --configdir=$(CONFIGDIR) --init
-	mock --configdir=$(CONFIGDIR) --chroot "ln -s /lib/modules/kabi-rhel70/ /lib/modules/kabi"
-	mock --no-clean --configdir=$(CONFIGDIR)  --resultdir=$(OUTDIR) --rebuild $(SRPM)
-	#This is just a workaround for the kabi symlink bug:
-	#https://bugzilla.redhat.com/show_bug.cgi?id=842038
-	#Once that bug is resolved, they should be replaced with:
-	#mock --configdir=$(CONFIGDIR)  --resultdir=$(OUTDIR) --rebuild $(SRPM)
+	rpmbuild --rebuild $(RPMBUILD)/SRPMS/tipc*.rpm
 
 clean:
 	rm -rf out/*
