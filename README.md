@@ -1,7 +1,10 @@
 # tipc-rhel7
 TIPC kmod for RHEL7
 
-You'll need to install the following packages to build the kmod:
+Prebuilt binaries can be found here:
+https://build.opensuse.org/package/binaries/home:hugne/tipc-rhel7?repository=RHEL_7
+
+To build the SRPM/KMOD from sources, you'll need to install the following packages:
 ```
 $ yum groupinstall "Development tools"
 $ yum install kernel-devel kernel-abi-whitelists bzip2
