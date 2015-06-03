@@ -1,0 +1,51 @@
+From 2c8bc941530bf5b97e163d6e3c8001b2c7e47ae3 Mon Sep 17 00:00:00 2001
+From: Erik Hugne <erik.hugne@ericsson.com>
+Date: Wed, 3 Jun 2015 17:49:52 +0200
+Subject: [PATCH] genetlink: only pass array to genl_register_family_with_ops()
+
+As suggested by David Miller, make genl_register_family_with_ops()
+a macro and pass only the array, evaluating ARRAY_SIZE() in the
+macro, this is a little safer.
+
+The openvswitch has some indirection, assing ops/n_ops directly in
+that code. This might ultimately just assign the pointers in the
+family initializations, saving the struct genl_family_and_ops and
+code (once mcast groups are handled differently.)
+
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tipc/netlink.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/net/tipc/netlink.c b/net/tipc/netlink.c
+index e361cfc..9f7faf9 100644
+--- a/net/tipc/netlink.c
++++ b/net/tipc/netlink.c
+@@ -76,9 +76,11 @@ static struct genl_family tipc_genl_family = {
+ 	.maxattr	= 0,
+ };
+ 
+-static struct genl_ops tipc_genl_ops = {
+-	.cmd		= TIPC_GENL_CMD,
+-	.doit		= handle_cmd,
++static struct genl_ops tipc_genl_ops[] = {
++	 {
++		.cmd		= TIPC_GENL_CMD,
++		.doit		= handle_cmd,
++	 },
+ };
+ 
+ int tipc_netlink_start(void)
+@@ -86,7 +88,7 @@ int tipc_netlink_start(void)
+ 	int res;
+ 
+ 	res = genl_register_family_with_ops(&tipc_genl_family,
+-		&tipc_genl_ops, 1);
++		tipc_genl_ops);
+ 	if (res) {
+ 		pr_err("Failed to register netlink interface\n");
+ 		return res;
+-- 
+2.1.4
+

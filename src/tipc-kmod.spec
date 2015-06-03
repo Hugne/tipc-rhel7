@@ -5,6 +5,7 @@
 Source0:	tipc.tar.bz2
 Source10:	tipc-kmodtool.sh
 Source100:	patches.v3.14.tar.bz2
+Patch1:		src/0001-genetlink-only-pass-array-to-genl_register_family_wi.patch
 Name:           %{kmod_name}
 Version:        %{kmod_version}
 Release:        %{kmod_release}
@@ -36,6 +37,9 @@ for patch in patches.v3.14/*.patch; do
 	echo applying $patch...
 	patch -p3 < $patch
 done
+
+#compat fix for RHEL7.1 ABI change
+%patch1 -p3
 
 set -- *
 mkdir tipc
